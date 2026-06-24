@@ -15,6 +15,18 @@ export const runtime = 'nodejs';
  */
 export async function POST(req) {
   try {
+    // Payrexx ещё не подключён? Возвращаем понятное сообщение вместо крипто-ошибки.
+    if (!process.env.PAYREXX_API_SECRET) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Оплата через Payrexx пока недоступна — API не подключён. Для теста выпусти билет через /api/dev/issue.',
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const eventName = body.eventName || 'test';
     const amount = Number.isInteger(body.amount) ? body.amount : 1; // 0.01 CHF

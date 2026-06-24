@@ -3,6 +3,9 @@
 Self-contained стенд: оплата через Payrexx → webhook → генерация QR → письмо через Resend → сканер на входе.
 Стек тот же, что у формы Kunstwerkstube: **Next.js + Supabase + Resend + Vercel**.
 
+> 📍 **После сбоя / для актуального состояния читай [`STATE.md`](STATE.md).** Гайд агента — [`CLAUDE.md`](CLAUDE.md). ТЗ (источник истины) — [`docs/TZ-tickets-subscription.md`](docs/TZ-tickets-subscription.md).
+> Прод: https://slswiss-tickets.vercel.app · репо `creox-ch/slswiss-tickets`.
+
 ## Что внутри
 
 ```
@@ -12,6 +15,7 @@ app/
   api/payrexx/create/route.js   POST: pending-билет + Payrexx Gateway
   api/payrexx/webhook/route.js  POST: приём вебхука, верификация, QR, email
   api/checkin/route.js          POST: валидация QR на входе
+  api/dev/issue/route.js        DEV: выпуск билета без Payrexx (тест; удалить перед продом)
 lib/
   payrexx.js                    API-клиент + подписи (исходящая + вебхук)
   supabase.js                   service_role клиент (только сервер)

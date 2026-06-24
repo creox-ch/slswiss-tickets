@@ -18,7 +18,7 @@ export default function BuyPage() {
       const res = await fetch('/api/payrexx/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventName: 'Тестовое событие', email, name, amount: 1 }),
+        body: JSON.stringify({ eventName: 'Тестовое событие', email, name, amount: 100 }),
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || 'ошибка создания');
@@ -32,7 +32,7 @@ export default function BuyPage() {
   return (
     <main style={{ maxWidth: 420, margin: '40px auto', padding: 20, fontFamily: 'system-ui' }}>
       <h1 style={{ color: '#d52b1e' }}>SoiLüDi · Билет (тест)</h1>
-      <p style={{ color: '#666' }}>Тестовая оплата 0.01 CHF. После оплаты придёт письмо с QR.</p>
+      <p style={{ color: '#666' }}>Тестовая оплата 1.00 CHF. После оплаты придёт письмо с QR.</p>
 
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Имя"
         style={inp} />

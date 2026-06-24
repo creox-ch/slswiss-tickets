@@ -29,7 +29,7 @@ export async function POST(req) {
 
     const body = await req.json().catch(() => ({}));
     const eventName = body.eventName || 'test';
-    const amount = Number.isInteger(body.amount) ? body.amount : 1; // 0.01 CHF
+    const amount = Number.isInteger(body.amount) ? body.amount : 100; // 1.00 CHF
 
     const referenceId = `slsw-${crypto.randomUUID()}`;
     const base = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';

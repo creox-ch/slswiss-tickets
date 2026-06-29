@@ -62,3 +62,31 @@ export async function POST(req) {
     return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 500 });
   }
 }
+
+/**
+ * GET /api/payrexx/create?key=DEV_ISSUE_TOKEN  — ВРЕМЕННАЯ диагностика конфигурации.
+ * Показывает состояние Payrexx-переменных БЕЗ раскрытия секретов (только длина,
+ * первые/последние 4 символа, признак лишних пробелов). Закрыто токеном DEV_ISSUE_TOKEN.
+ * Удалить вместе с dev/issue перед продом.
+ */
+export async function GET(req) {
+  const url = new URL(req.url);
+  const token = process.env.DEV_ISSUE_TOKEN;
+  if (!token || url.searchParams.get('key') !== token) {
+    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  }
+  const mask = (s) =>
+    s ? `${s.slice(0, 4)}…${s.slice(-4)} (len ${s.length}, trimLen ${s.trim().length})` : '(empty)';
+  const inst = process.env.PAYREXX_INSTANCE || '';
+  const sec = process.env.PAYREXX_API_SECRET || '';
+  const wh = process.env.PAYREXX_WEBHOOK_SIGNING_KEY || '';
+  return NextResponse.json({
+    ok: true,
+    instance: JSON.stringify(inst), // в кавычках — видно пробелы
+    instanceTrimmed: inst.trim(),
+    apiSecret: mask(sec),
+    apiSecretEdgeWhitespace: sec !== sec.trim(),
+    webhookKey: mask(wh),
+    webhookKeyEdgeWhitespace: wh !== wh.trim(),
+  });
+}

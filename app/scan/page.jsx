@@ -15,11 +15,16 @@ export default function ScanPage() {
   const [last, setLast] = useState(null);     // {result, message, name, event}
   const [busy, setBusy] = useState(false);
   const lastTokenRef = useRef('');
+  const lockRef = useRef(false); // СИНХРОННЫЙ замок (state обновляется слишком поздно)
 
   async function checkToken(token) {
-    if (!token || busy) return;
-    // антидребезг: не дёргать один и тот же токен подряд
-    if (token === lastTokenRef.current && last) return;
+    if (!token) return;
+    // zxing зовёт колбэк много раз в секунду: без ref-замка два кадра подряд
+    // успевают пройти до setBusy и дают двойной чек-ин ("уже входил" на первом скане).
+    if (lockRef.current) return;
+    // тот же токен не перепроверяем, пока QR висит в кадре (сброс через 2.5с)
+    if (token === lastTokenRef.current) return;
+    lockRef.current = true;
     lastTokenRef.current = token;
     setBusy(true);
     try {
@@ -33,6 +38,7 @@ export default function ScanPage() {
       setLast({ result: 'error', message: 'сеть недоступна' });
     } finally {
       setBusy(false);
+      lockRef.current = false;
       // через 2.5с разрешаем повторный скан того же
       setTimeout(() => { lastTokenRef.current = ''; }, 2500);
     }

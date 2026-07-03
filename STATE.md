@@ -136,7 +136,7 @@ node --check lib/*.js app/api/**/route.js
 | `RESEND_API_KEY` | отправка письма с QR | ✅ задано (2026-06-29) |
 | `PAYREXX_API_SECRET` | Payrexx API secret | ✅ задано (2026-06-29) |
 | `PAYREXX_INSTANCE` | поддомен Payrexx (часть до `.payrexx.com`) | ✅ задано |
-| `PAYREXX_WEBHOOK_SIGNING_KEY` | подпись вебхука; без него вебхук ОТКЛОНЯЕТСЯ (fail-closed) | проверить в Vercel |
+| `PAYREXX_WEBHOOK_SIGNING_KEY` | подпись вебхука; без него вебхук ОТКЛОНЯЕТСЯ (fail-closed) | ✅ задано (2026-06-29, e2e-оплата прошла) |
 | `ALLOW_UNSIGNED_WEBHOOKS` | =1 временно разрешает вебхук без подписи (только настройка) | ⬜ не задавать без нужды |
 | `TICKET_PRICE_RAPPEN` | цена билета в раппенах (default 100 = 1.00 CHF) | ⬜ опционально |
 | `CHECKIN_STAFF_KEY` | ключ персонала для чек-ина; пусто = без ключа | ⬜ задать перед событием |

@@ -31,7 +31,7 @@
 - ✅ Тесты: Playwright (unit: подпись вебхука, парсер form-data, escapeHtml; e2e: сканер и покупка с мокнутым API) + CI GitHub Actions (`.github/workflows/test.yml`: build + tests).
 - 🛡️ GitHub: включена branch protection на `main` (оба репо creox-ch): PR + 1 ревью для не-админов; админы пушат напрямую.
 
-**Следующий шаг:** тестовая реальная оплата через Payrexx (PSP в кабинете). Перед боевым событием — чек-лист ниже.
+**Следующий шаг:** часть 2 ТЗ — подписка 19 CHF/мес на **Payrexx** (решение 2026-07-03, ТЗ переписано). Перед боевым событием с билетами — чек-лист ниже. ⚠ Payrexx trial истекает ~2026-07-24 — нужен платный план.
 
 **Чек-лист перед продом:**
 1. Удалить `app/api/dev/` и `GET`-диагностику из `app/api/payrexx/create/route.js`; убрать `DEV_ISSUE_TOKEN` из env.
@@ -40,7 +40,7 @@
 4. Задать реальную цену `TICKET_PRICE_RAPPEN`.
 5. Закоммитить `package-lock.json` (нужен npm локально или через CI) — воспроизводимые сборки.
 
-**Часть 2 ТЗ (подписка SLS через Stripe) — ещё не реализована.**
+**Часть 2 ТЗ (подписка SLS 19 CHF/мес) — ещё не реализована.** ⚠ Решение 2026-07-03: делаем на **Payrexx** (единый провайдер платформы), НЕ на Stripe — ТЗ обновлено.
 
 ---
 
@@ -88,7 +88,7 @@ slswiss-tickets/
 - ТЗ `/api/tickets/validate` → **факт** `app/api/checkin/route.js`
 - ТЗ `/scanner` (с паролем, html5-qrcode) → **факт** `/scan` (`app/scan/page.jsx`, **@zxing/browser**, пока без пароля)
 - ТЗ таблица `tickets` с полями `event/ticket_type/used/used_at` → **факт** `supabase-schema.sql`: поля `reference_id/event_name/status(pending|paid|checked_in|failed|refunded)/qr_token/payrexx_tx_id/paid_at/checked_in_at` (одно событие, один тип билета)
-- ТЗ часть 2 (Stripe-подписка `subscriptions`, `/api/subscribe`, `/api/stripe/webhook`) — **не реализована** в этом репо.
+- ТЗ часть 2 (подписка `subscriptions`, `/api/subscribe` + вебхук) — **не реализована** в этом репо. Решение 2026-07-03: на **Payrexx**, не Stripe (раздел ТЗ переписан).
 - Файлов `HANDOFF.md`, `IVANNA-NEXT-SPRINT.md`, `slswiss-architecture.md` тут **нет** — они относятся к другому проекту (основной сайт slswiss.ch), не к этому стенду.
 
 ---

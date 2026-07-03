@@ -65,27 +65,34 @@
 
 ## Часть 2 — Подписка SLS (месячная, 19 CHF) — НЕ реализовано
 
+> ⚠️ **РЕШЕНИЕ 2026-07-03: подписка делается на Payrexx, НЕ на Stripe.**
+> Исходное ТЗ предлагало Stripe Billing, но платёжный провайдер всей платформы выбран —
+> **Payrexx** (BACKLOG slswiss, пункт payment-provider ✅; контур проверен вживую на билетах
+> 2026-06-29). Один провайдер для всех платежей: биллеты, business-99, подписка 19 CHF.
+> У Payrexx есть recurring-подписки в Gateway API (subscriptionState/Interval/Period).
+> Раздел ниже переписан под Payrexx; исходные Stripe-формулировки — в истории git.
+
 **Параметры:**
 - Продукт: месячная подписка на сообщество SLS Swiss; 19 CHF/мес.
-- Оплата: **Stripe Billing** (recurring; TWINT не поддерживает recurring → только карта / Apple Pay / Google Pay).
+- Оплата: **Payrexx subscriptions** (recurring через Gateway; TWINT не поддерживает recurring → только карта / Apple Pay / Google Pay).
 - База: Supabase (тот же проект). Email: Resend.
 
-**Поток:** «Подписаться» → Stripe Checkout (hosted) → карта/ApplePay/GooglePay → Stripe списывает ежемесячно → webhook → запись/обновление Supabase `subscriptions` (user_id, email, status=active, current_period_end, stripe_subscription_id) → Resend welcome/продление → отмена/неудача → статус cancelled/past_due → доступ к закрытому контенту по статусу в Supabase.
+**Поток:** «Подписаться» → Payrexx Gateway (hosted, subscription) → карта/ApplePay/GooglePay → Payrexx списывает ежемесячно → webhook (подписанный, как на билетах) → запись/обновление Supabase `subscriptions` (email, status=active, current_period_end, payrexx_subscription_id) → Resend welcome/продление → отмена/неудача → статус cancelled/past_due → доступ к закрытому контенту по статусу в Supabase.
 
-**Таблица Supabase `subscriptions` (по ТЗ):**
+**Таблица Supabase `subscriptions`:**
 
 | Поле | Тип | Описание |
 |---|---|---|
 | id | UUID (PK) | internal id |
 | email | text | email подписчика |
-| stripe_customer_id | text | Stripe customer ID |
-| stripe_subscription_id | text | Stripe subscription ID |
+| payrexx_contact_id | text | контакт в Payrexx (был stripe_customer_id) |
+| payrexx_subscription_id | text | подписка в Payrexx (был stripe_subscription_id) |
 | status | text | active \| cancelled \| past_due |
 | current_period_end | timestamptz | когда истекает период |
 | created_at | timestamptz | дата первой подписки |
 | cancelled_at | timestamptz | дата отмены (null если активна) |
 
-**Компоненты:** Stripe Product+Price (19 CHF/month recurring; карты+ApplePay+GooglePay, без TWINT) · `/api/subscribe` (Stripe Checkout Session, mode=subscription) · `/api/stripe/webhook` (checkout.session.completed, invoice.payment_succeeded, customer.subscription.deleted, invoice.payment_failed; verify через `stripe.webhooks.constructEvent`) · middleware доступа по статусу · (опц.) Stripe Billing Portal через `/api/portal`.
+**Компоненты:** Payrexx Gateway с subscription-параметрами (19 CHF/month; карты+ApplePay+GooglePay, без TWINT) · `/api/subscribe` (создание Gateway, mode=subscription) · `/api/payrexx/subscription-webhook` (события subscription created/renewed/cancelled/failed; подпись HMAC-SHA256 + независимая верификация через API — переиспользуем `lib/payrexx.js` из билетов) · middleware доступа по статусу · отмена подписки через кабинет/API Payrexx.
 
 ---
 
@@ -94,7 +101,7 @@
 | Компонент | Инструмент | Статус |
 |---|---|---|
 | Билеты: оплата | Payrexx Paylink | есть аккаунт |
-| Подписка: оплата | Stripe Billing | есть аккаунт |
+| Подписка: оплата | Payrexx subscriptions (решение 2026-07-03; в исходном ТЗ — Stripe Billing) | аккаунт есть (⚠ trial до ~2026-07-24) |
 | Webhook + логика | Next.js API routes | в стеке |
 | База данных | Supabase (Frankfurt) | 3 проекта есть |
 | QR-генерация | npm: qrcode | установить |

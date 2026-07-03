@@ -1,7 +1,7 @@
 # STATE.md — читай меня первым после сбоя
 
 > Точка восстановления проекта. Если сессия/Cowork потеряны — начни отсюда.
-> Принцип: **реальность (git/деплой/код на диске) важнее заметок.** Этот файл сверен с кодом 2026-06-24.
+> Принцип: **реальность (git/деплой/код на диске) важнее заметок.** Этот файл сверен с кодом 2026-07-03.
 
 ---
 
@@ -15,21 +15,32 @@
 
 ---
 
-## 🔴 ГДЕ МЫ СЕЙЧАС (на 2026-06-24)
+## 🔴 ГДЕ МЫ СЕЙЧАС (на 2026-07-03)
 
-**Работает и задеплоено:** выпуск билета, генерация QR-токена, сканер `/scan`, проверка входа (`valid → already → not_paid → invalid`). Проверено health-check'ом на проде.
+**Работает и задеплоено:** выпуск билета, QR-токен, письмо с QR (hosted-картинка `/api/qr` + PNG-вложение), сканер `/scan`, проверка входа (`valid → already → not_paid → invalid`). Email+Payrexx-доступ настроены 2026-06-29 (X-API-KEY, hex-подпись вебхука).
 
-**Тестируется без Payrexx:** через dev-эндпоинт `/api/dev/issue` (защищён `DEV_ISSUE_TOKEN`) — выпускает оплаченный билет, минуя оплату. Это и есть текущий рабочий способ теста сканера. ✅ подтверждено Kseniia: «эта часть работает».
+**2026-07-03 — ревью проекта + фиксы (этот спринт):**
+- 🐛 Гонка двух сканеров: `checkin` теперь проверяет результат `update` (`.select()`), проигравший получает `already`, а не второй «✅ Вход».
+- 🐛 Сбой БД больше не выглядит как «билет не найден»: `maybeSingle()` + отдельная обработка `error` в checkin и вебхуке.
+- 🐛 Вебхук при НАШЕЙ ошибке (БД/Payrexx API) отвечает **500** → Payrexx ретраит, оплата не теряется молча (обработка идемпотентна). Раньше был 200 — событие пропадало.
+- 🔒 Цену определяет только сервер: `TICKET_PRICE_RAPPEN` (default 100), `amount` из тела игнорируется (раньше клиент мог купить билет за 0.01 CHF).
+- 🔒 Подпись вебхука **fail-closed**: без `PAYREXX_WEBHOOK_SIGNING_KEY` вебхук отклоняется; временный обход — `ALLOW_UNSIGNED_WEBHOOKS=1`.
+- 🔒 Опциональный ключ персонала: если задан `CHECKIN_STAFF_KEY`, `/api/checkin` требует заголовок `X-Staff-Key`; на `/scan` появилось поле «🔑 Ключ сканера» (хранится в localStorage).
+- 🔒 `/api/qr` принимает только токеноподобные `t` (8–64 символа `[A-Za-z0-9_-]`); имя/событие экранируются в HTML письма.
+- ✨ После оплаты покупатель попадает на `/thanks` («билет придёт на почту»), а не на служебный сканер.
+- ✅ Тесты: Playwright (unit: подпись вебхука, парсер form-data, escapeHtml; e2e: сканер и покупка с мокнутым API) + CI GitHub Actions (`.github/workflows/test.yml`: build + tests).
+- 🛡️ GitHub: включена branch protection на `main` (оба репо creox-ch): PR + 1 ревью для не-админов; админы пушат напрямую.
 
-**🟡 В работе / заблокировано — оплата через Payrexx:**
-- Payrexx **API недоступен на бесплатном плане** её аккаунта (проверено в кабинете). Реальная оплата требует платного плана или 30-дн. триала.
-- При нажатии «Купить билет» ловили `Payrexx createGateway failed: ... Unprocessable Content` (HTTP **422**). 422 = авторизация ок (INSTANCE/SECRET верные), но Payrexx отклонил данные.
-- **Причина:** в кабинете Payrexx **не активирован платёжный провайдер (PSP)**. Gateway нельзя создать без активного PSP. → Kseniia сейчас на фазе активации провайдера (в test-режиме).
-- Уже сделано в коде под это: сумма поднята до **1.00 CHF (amount=100 раппен)** на случай минимумов PSP; добавлен дружелюбный ответ 503, если `PAYREXX_API_SECRET` пуст.
+**Следующий шаг:** тестовая реальная оплата через Payrexx (PSP в кабинете). Перед боевым событием — чек-лист ниже.
 
-**Следующий шаг:** активировать PSP в Payrexx (test mode) → добавить env `PAYREXX_API_SECRET`, `PAYREXX_INSTANCE`, позже `PAYREXX_WEBHOOK_SIGNING_KEY` → завести webhook на `/api/payrexx/webhook` → повторить «Купить билет».
+**Чек-лист перед продом:**
+1. Удалить `app/api/dev/` и `GET`-диагностику из `app/api/payrexx/create/route.js`; убрать `DEV_ISSUE_TOKEN` из env.
+2. Задать `PAYREXX_WEBHOOK_SIGNING_KEY` (и убрать `ALLOW_UNSIGNED_WEBHOOKS`, если ставили).
+3. Задать `CHECKIN_STAFF_KEY` и раздать его персоналу на входе.
+4. Задать реальную цену `TICKET_PRICE_RAPPEN`.
+5. Закоммитить `package-lock.json` (нужен npm локально или через CI) — воспроизводимые сборки.
 
-**Дедлайны:** ТЗ готовилось «к встрече в среду» (24.06.2026). Часть 2 ТЗ (подписка SLS через Stripe) — **ещё не реализована**.
+**Часть 2 ТЗ (подписка SLS через Stripe) — ещё не реализована.**
 
 ---
 
@@ -52,14 +63,23 @@ slswiss-tickets/
     payrexx.js                    HMAC-подписи, createGateway, getTransaction, verifyWebhookSignature
     supabase.js                   ЛЕНИВЫЙ service_role клиент (Proxy) — экспорт supabaseAdmin
     ticket.js                     ЛЕНИВЫЙ Resend, buildQrDataUrl, sendTicketEmail
+  playwright.config.js            тесты: unit + e2e (webServer: next dev)
+  .github/workflows/test.yml      CI: build + Playwright на push/PR в main
+  tests/
+    unit/payrexx.spec.js          подпись вебхука (fail-closed), unflattenTransaction
+    unit/ticket.spec.js           escapeHtml
+    e2e/scan.spec.js              сканер: ok/already/invalid + ключ персонала (API мокается)
+    e2e/buy.spec.js               покупка: без amount с клиента, 503, /thanks
   app/
     layout.jsx
     page.jsx                      страница покупки (POST /api/payrexx/create → редирект)
-    scan/page.jsx                 сканер (@zxing/browser + ручной ввод токена)
+    thanks/page.jsx               «спасибо, билет придёт на почту» (successRedirectUrl)
+    scan/page.jsx                 сканер (@zxing/browser + ручной ввод + поле ключа персонала)
     api/
-      payrexx/create/route.js     POST: pending-билет + Payrexx Gateway (503 если нет PAYREXX_API_SECRET)
-      payrexx/webhook/route.js    POST: приём вебхука, верификация, QR, email
-      checkin/route.js            POST {token} → result: ok|already|not_paid|invalid
+      payrexx/create/route.js     POST: pending-билет + Payrexx Gateway (503 если нет PAYREXX_API_SECRET); цена — только TICKET_PRICE_RAPPEN
+      payrexx/webhook/route.js    POST: приём вебхука, верификация (fail-closed), QR, email; 500 при нашей ошибке → ретрай Payrexx
+      checkin/route.js            POST {token} (+X-Staff-Key) → result: ok|already|not_paid|invalid|auth
+      qr/route.js                 GET ?t=TOKEN → PNG с QR (для картинки в письме)
       dev/issue/route.js          DEV: выпуск билета без Payrexx (gate: DEV_ISSUE_TOKEN). УДАЛИТЬ перед продом.
 ```
 
@@ -96,11 +116,13 @@ node --check lib/*.js app/api/**/route.js
 - `GET /api/dev/issue` (без key) → `401 {"ok":false,"error":"bad key"}` = `DEV_ISSUE_TOKEN` задан.
 
 **Ключевые факты кода:**
-- `amount` — в **раппенах** (1.00 CHF = 100). Тестовая покупка шлёт `amount:100`.
+- `amount` — в **раппенах** (1.00 CHF = 100). Цену задаёт ТОЛЬКО сервер (`TICKET_PRICE_RAPPEN`, default 100); клиент `amount` не шлёт, сервер его игнорирует.
 - QR кодирует `${PUBLIC_BASE_URL}/scan?t=<qr_token>`. Страница `/scan` **не делает авто-checkin** из URL-параметра (только камера/ручной ввод) — покупатель сам себя не отметит.
-- Webhook не доверяет payload: после приёма дёргает `GET /Transaction/{id}` и проверяет `status === 'confirmed'`. Подпись вебхука — заголовок `X-Webhook-Signature`, HMAC-SHA256 тела по `PAYREXX_WEBHOOK_SIGNING_KEY`.
-- `lib/supabase.js` и `lib/ticket.js` — **ленивая** инициализация клиентов (иначе `next build` падает: «Failed to collect page data»).
+- Webhook не доверяет payload: после приёма дёргает `GET /Transaction/{id}` и проверяет `status === 'confirmed'`. Подпись — заголовок `X-Webhook-Signature`, HMAC-SHA256 (lowercase hex) сырого тела по `PAYREXX_WEBHOOK_SIGNING_KEY`; **fail-closed** без ключа. Наша ошибка (БД/API) → **500** → Payrexx ретраит; обработка идемпотентна.
+- Чек-ин: `update ... eq(status,'paid').select()` — при гонке двух сканеров проигравший получает `already`. Если задан `CHECKIN_STAFF_KEY`, требуется заголовок `X-Staff-Key` (сканер держит его в localStorage).
+- `lib/supabase.js`, `lib/ticket.js`, env в `lib/payrexx.js` — **ленивые** (иначе `next build` падает: «Failed to collect page data»; и env можно менять в тестах).
 - Payrexx API base: `https://api.payrexx.com/v1.0`, instance передаётся как `?instance=`.
+- Тесты: `npm test` (Playwright; e2e мокают API через `page.route` — Supabase/Payrexx не нужны). Локально node нет — валидация через CI.
 
 **Env-переменные (Vercel → проект → Settings → Environment Variables):**
 
@@ -111,10 +133,13 @@ node --check lib/*.js app/api/**/route.js
 | `PUBLIC_BASE_URL` | `https://slswiss-tickets.vercel.app` | ✅ задано |
 | `TICKET_FROM_EMAIL` | `SoiLüDi <noreply@slswiss.ch>` | ✅ задано |
 | `DEV_ISSUE_TOKEN` | включает dev-выпуск билета | ✅ задано |
-| `RESEND_API_KEY` | отправка письма с QR | ⬜ НЕ задано (письма не уходят) |
-| `PAYREXX_API_SECRET` | Payrexx API secret | 🟡 добавляется |
-| `PAYREXX_INSTANCE` | поддомен Payrexx (часть до `.payrexx.com`) | 🟡 добавляется |
-| `PAYREXX_WEBHOOK_SIGNING_KEY` | подпись вебхука | ⬜ позже |
+| `RESEND_API_KEY` | отправка письма с QR | ✅ задано (2026-06-29) |
+| `PAYREXX_API_SECRET` | Payrexx API secret | ✅ задано (2026-06-29) |
+| `PAYREXX_INSTANCE` | поддомен Payrexx (часть до `.payrexx.com`) | ✅ задано |
+| `PAYREXX_WEBHOOK_SIGNING_KEY` | подпись вебхука; без него вебхук ОТКЛОНЯЕТСЯ (fail-closed) | проверить в Vercel |
+| `ALLOW_UNSIGNED_WEBHOOKS` | =1 временно разрешает вебхук без подписи (только настройка) | ⬜ не задавать без нужды |
+| `TICKET_PRICE_RAPPEN` | цена билета в раппенах (default 100 = 1.00 CHF) | ⬜ опционально |
+| `CHECKIN_STAFF_KEY` | ключ персонала для чек-ина; пусто = без ключа | ⬜ задать перед событием |
 
 ---
 
@@ -154,4 +179,5 @@ node --check lib/*.js app/api/**/route.js
 
 ## История STATE.md
 
+- **2026-07-03** — ревью проекта + спринт фиксов: гонка сканеров, сбой БД ≠ «не найден», вебхук 500 на нашей ошибке, цена server-side, fail-closed подпись, ключ персонала, `/thanks`, экранирование письма, лимит `/api/qr`, Playwright-тесты + CI, branch protection на `main` (оба репо). Env-таблица актуализирована (Resend/Payrexx заданы 2026-06-29).
 - **2026-06-24** — создан. Сверено с кодом и деплоем. Зафиксировано: стенд задеплоен и работает (билет+сканер через dev/issue); оплата Payrexx блокирована активацией PSP (422); env-статус; расхождения ТЗ↔код; ограничения среды (push только из PowerShell, bash-mount показывает устаревшие копии). ТЗ перенесено в `docs/`.

@@ -14,8 +14,22 @@ export default function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [last, setLast] = useState(null);     // {result, message, name, event}
   const [busy, setBusy] = useState(false);
+  const [staffKey, setStaffKey] = useState('');
+  const staffKeyRef = useRef(''); // колбэк камеры замыкает старый рендер — читаем ключ из ref
   const lastTokenRef = useRef('');
   const lockRef = useRef(false); // СИНХРОННЫЙ замок (state обновляется слишком поздно)
+
+  // ключ сканера живёт в localStorage — вводится персоналом один раз на смену
+  useEffect(() => {
+    const saved = localStorage.getItem('sls_staff_key') || '';
+    setStaffKey(saved);
+    staffKeyRef.current = saved;
+  }, []);
+  function saveStaffKey(v) {
+    setStaffKey(v);
+    staffKeyRef.current = v;
+    localStorage.setItem('sls_staff_key', v);
+  }
 
   async function checkToken(token) {
     if (!token) return;
@@ -28,9 +42,11 @@ export default function ScanPage() {
     lastTokenRef.current = token;
     setBusy(true);
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (staffKeyRef.current) headers['X-Staff-Key'] = staffKeyRef.current;
       const res = await fetch('/api/checkin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ token }),
       });
       setLast(await res.json());
@@ -79,7 +95,7 @@ export default function ScanPage() {
 
   const palette = {
     ok: '#1b873f', already: '#b78103', not_paid: '#d52b1e',
-    invalid: '#d52b1e', error: '#d52b1e',
+    invalid: '#d52b1e', error: '#d52b1e', auth: '#b78103',
   };
 
   return (
@@ -101,6 +117,17 @@ export default function ScanPage() {
         <ManualEntry onSubmit={checkToken} disabled={busy} />
       </details>
 
+      <details style={{ marginTop: 8 }} open={last?.result === 'auth'}>
+        <summary style={{ cursor: 'pointer', color: '#666' }}>🔑 Ключ сканера</summary>
+        <input
+          type="password"
+          value={staffKey}
+          onChange={(e) => saveStaffKey(e.target.value)}
+          placeholder="ключ для персонала (если включён)"
+          style={{ width: '100%', padding: 10, marginTop: 8, borderRadius: 8, border: '1px solid #ccc', boxSizing: 'border-box' }}
+        />
+      </details>
+
       {last && (
         <div style={{
           marginTop: 20, padding: 18, borderRadius: 12, color: '#fff',
@@ -112,6 +139,7 @@ export default function ScanPage() {
             {last.result === 'not_paid' && '⛔ Не оплачен'}
             {last.result === 'invalid' && '❌ Невалиден'}
             {last.result === 'error' && '⚠️ Ошибка'}
+            {last.result === 'auth' && '🔑 Нужен ключ'}
           </div>
           {last.name && <div style={{ marginTop: 6 }}>{last.name}</div>}
           {last.event && <div style={{ opacity: .85 }}>{last.event}</div>}

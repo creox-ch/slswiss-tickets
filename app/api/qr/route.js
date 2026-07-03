@@ -12,6 +12,9 @@ export async function GET(req) {
   const url = new URL(req.url);
   const t = url.searchParams.get('t');
   if (!t) return new NextResponse('missing t', { status: 400 });
+  // наши токены — 32 hex-символа; не даём рендерить QR из произвольных строк
+  // (открытый генератор = бесплатный CPU + фишинговые QR с нашего домена)
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(t)) return new NextResponse('bad t', { status: 400 });
 
   const base = process.env.PUBLIC_BASE_URL || 'https://slswiss-tickets.vercel.app';
   const payload = `${base}/scan?t=${encodeURIComponent(t)}`;

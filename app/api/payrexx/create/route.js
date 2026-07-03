@@ -7,7 +7,10 @@ export const runtime = 'nodejs';
 
 /**
  * POST /api/payrexx/create
- * body: { eventName?, email?, name?, amount? }  amount в раппенах (default 1 = 0.01 CHF)
+ * body: { eventName?, email?, name? }
+ *
+ * Цену определяет ТОЛЬКО сервер (TICKET_PRICE_RAPPEN, default 100 = 1.00 CHF).
+ * amount из тела запроса игнорируется: клиент управляет ценой = билет за 0.01 CHF.
  *
  * 1) создаём строку tickets со status=pending и нашим reference_id
  * 2) создаём Payrexx Gateway с этим reference_id
@@ -29,7 +32,7 @@ export async function POST(req) {
 
     const body = await req.json().catch(() => ({}));
     const eventName = body.eventName || 'test';
-    const amount = Number.isInteger(body.amount) ? body.amount : 100; // 1.00 CHF
+    const amount = parseInt(process.env.TICKET_PRICE_RAPPEN, 10) || 100; // 1.00 CHF
 
     const referenceId = `slsw-${crypto.randomUUID()}`;
     const base = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
@@ -51,7 +54,7 @@ export async function POST(req) {
       amount,
       currency: 'CHF',
       purpose: `SoiLüDi — ${eventName}`,
-      successUrl: `${base}/scan?paid=1`,
+      successUrl: `${base}/thanks`,
       failedUrl: `${base}/?failed=1`,
       cancelUrl: `${base}/?cancelled=1`,
     });

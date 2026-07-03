@@ -18,7 +18,7 @@ export default function BuyPage() {
       const res = await fetch('/api/payrexx/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventName: 'Тестовое событие', email, name, amount: 100 }),
+        body: JSON.stringify({ eventName: 'Тестовое событие', email, name }),
       });
       const j = await res.json();
       if (!j.ok) throw new Error(j.error || 'ошибка создания');

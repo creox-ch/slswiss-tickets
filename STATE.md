@@ -34,7 +34,7 @@
 **Следующий шаг:** часть 2 ТЗ — подписка 19 CHF/мес на **Payrexx** (решение 2026-07-03, ТЗ переписано). Перед боевым событием с билетами — чек-лист ниже. ⚠ Payrexx trial истекает ~2026-07-24 — нужен платный план.
 
 **Чек-лист перед продом:**
-1. Удалить `app/api/dev/` и `GET`-диагностику из `app/api/payrexx/create/route.js`; убрать `DEV_ISSUE_TOKEN` из env.
+1. ✅ Удалено 2026-07-12: `app/api/dev/` и `GET`-диагностика в `app/api/payrexx/create/route.js`. ⬜ Осталось: убрать `DEV_ISSUE_TOKEN` из env Vercel (руками).
 2. Задать `PAYREXX_WEBHOOK_SIGNING_KEY` (и убрать `ALLOW_UNSIGNED_WEBHOOKS`, если ставили).
 3. Задать `CHECKIN_STAFF_KEY` и раздать его персоналу на входе.
 4. Задать реальную цену `TICKET_PRICE_RAPPEN`.
@@ -80,8 +80,8 @@ slswiss-tickets/
       payrexx/webhook/route.js    POST: приём вебхука, верификация (fail-closed), QR, email; 500 при нашей ошибке → ретрай Payrexx
       checkin/route.js            POST {token} (+X-Staff-Key) → result: ok|already|not_paid|invalid|auth
       qr/route.js                 GET ?t=TOKEN → PNG с QR (для картинки в письме)
-      dev/issue/route.js          DEV: выпуск билета без Payrexx (gate: DEV_ISSUE_TOKEN). УДАЛИТЬ перед продом.
 ```
+> `app/api/dev/issue` (dev-выпуск без оплаты) удалён 2026-07-12 (security). Тест сканера — реальной оплатой Payrexx.
 
 **Устаревшие имена / расхождения ТЗ ↔ код** (в ТЗ одно, в коде другое — верно второе):
 - ТЗ `/api/tickets/webhook` → **факт** `app/api/payrexx/webhook/route.js`
@@ -106,14 +106,14 @@ node --check lib/*.js app/api/**/route.js
 ```
 > Камера сканера работает только по HTTPS → тестировать на проде Vercel, не на localhost.
 
-**Тест сканера без Payrexx (рабочий путь сейчас):**
-1. `https://slswiss-tickets.vercel.app/api/dev/issue?key=<DEV_ISSUE_TOKEN>&email=<почта>&name=<имя>` → вернёт `qr_token`.
-2. Открыть `/scan` → «Ввести код вручную» → вставить `qr_token` (письма с QR нет, пока не задан `RESEND_API_KEY`).
+**Тест сканера (после удаления dev/issue):** реальной оплатой Payrexx (сумма мелкая, `TICKET_PRICE_RAPPEN`).
+1. На проде «Купить билет» → оплата Payrexx → письмо с QR.
+2. Открыть `/scan` → камера или «Ввести код вручную» → `qr_token`.
 3. Результаты: первый скан → ✅ Вход; повтор → ⚠️ Уже входил; случайный код → ❌ Невалиден.
 
 **Health-checks (curl/fetch на проде):**
 - `POST /api/checkin {token:"x"}` → `200 {"result":"invalid","message":"билет не найден"}` = Supabase подключён, таблица есть.
-- `GET /api/dev/issue` (без key) → `401 {"ok":false,"error":"bad key"}` = `DEV_ISSUE_TOKEN` задан.
+- `GET /api/dev/issue` → `404` = бэкдор удалён (маршрута больше нет).
 
 **Ключевые факты кода:**
 - `amount` — в **раппенах** (1.00 CHF = 100). Цену задаёт ТОЛЬКО сервер (`TICKET_PRICE_RAPPEN`, default 100); клиент `amount` не шлёт, сервер его игнорирует.
@@ -132,7 +132,7 @@ node --check lib/*.js app/api/**/route.js
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role (секрет) | ✅ задано |
 | `PUBLIC_BASE_URL` | `https://slswiss-tickets.vercel.app` | ✅ задано |
 | `TICKET_FROM_EMAIL` | `SoiLüDi <noreply@slswiss.ch>` | ✅ задано |
-| `DEV_ISSUE_TOKEN` | включает dev-выпуск билета | ✅ задано |
+| `DEV_ISSUE_TOKEN` | ~~dev-выпуск билета~~ | 🗑 код удалён 2026-07-12 → убрать из env Vercel |
 | `RESEND_API_KEY` | отправка письма с QR | ✅ задано (2026-06-29) |
 | `PAYREXX_API_SECRET` | Payrexx API secret | ✅ задано (2026-06-29) |
 | `PAYREXX_INSTANCE` | поддомен Payrexx (часть до `.payrexx.com`) | ✅ задано |
@@ -173,7 +173,7 @@ node --check lib/*.js app/api/**/route.js
 - **Письмо не валит оплату** — если Resend упал, билет всё равно `paid`.
 - **amount в раппенах**, тестовая сумма 1.00 CHF (100).
 - **Репозиторий public** — приватный org-repo на Vercel требует план Pro; команда creox на Hobby. Секретов в репо нет (только публичный URL Supabase; ключи в env).
-- **dev/issue** — временный тест-эндпоинт без Payrexx. **Удалить (папку `app/api/dev`) и `DEV_ISSUE_TOKEN` перед продом.**
+- **dev/issue** — был временный тест-эндпоинт без Payrexx (выпускал `paid`-билет по токену в URL). **Удалён 2026-07-12** (security): убраны `app/api/dev` и GET-диагностика из `payrexx/create`. Осталось убрать `DEV_ISSUE_TOKEN` из env Vercel.
 
 ---
 

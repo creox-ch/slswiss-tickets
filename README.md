@@ -15,7 +15,6 @@ app/
   api/payrexx/create/route.js   POST: pending-билет + Payrexx Gateway
   api/payrexx/webhook/route.js  POST: приём вебхука, верификация, QR, email
   api/checkin/route.js          POST: валидация QR на входе
-  api/dev/issue/route.js        DEV: выпуск билета без Payrexx (тест; удалить перед продом)
 lib/
   payrexx.js                    API-клиент + подписи (исходящая + вебхук)
   supabase.js                   service_role клиент (только сервер)

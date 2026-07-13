@@ -3,6 +3,7 @@ import {
   normalizeSubmission,
   normalizeEmail,
   renderNotificationHtml,
+  renderTestsHtml,
 } from '../../lib/forms';
 
 test.describe('normalizeSubmission', () => {
@@ -84,6 +85,30 @@ test.describe('renderNotificationHtml', () => {
     });
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
+  });
+
+  test('блок тестов человекочитаем (Мадди + Адизес с русскими шкалами)', () => {
+    const html = renderTestsHtml({
+      started: '13.07 16:00',
+      finished: '13.07 16:08',
+      maddi: { total: 78, zone: 'высокая', pct: { C: 80, K: 75, V: 70 }, top: 'Контроль' },
+      adizes: { code: 'PaEi', pct: { P: 40, A: 20, E: 25, I: 15 }, top: 'Результат', second: 'Идеи' },
+    });
+    expect(html).toContain('Жизнестойкость (Мадди)');
+    expect(html).toContain('78%');
+    expect(html).toContain('высокая');
+    expect(html).toContain('Вовлечённость: 80%');
+    expect(html).toContain('Сильная сторона: <b>Контроль</b>');
+    expect(html).toContain('Адизес PAEI');
+    expect(html).toContain('Результат (P): 40%');
+    expect(html).toContain('Ведущая роль: <b>Результат</b>');
+    expect(html).not.toContain('<pre'); // не JSON-дамп для известной структуры
+  });
+
+  test('незнакомая структура тестов → запасной JSON', () => {
+    const html = renderTestsHtml({ custom: { foo: 'bar' } });
+    expect(html).toContain('<pre');
+    expect(html).toContain('foo');
   });
 
   test('рендерит поля payload и блок тестов', () => {

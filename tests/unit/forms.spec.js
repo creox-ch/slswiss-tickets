@@ -57,6 +57,13 @@ test.describe('normalizeSubmission', () => {
     });
     expect(out.tests).toEqual({ maddi: { total: 80 } });
   });
+
+  test('elapsed_ms парсится в число, мусор → null', () => {
+    expect(normalizeSubmission({ source: 'chudina', elapsed_ms: 4200 }).elapsed_ms).toBe(4200);
+    expect(normalizeSubmission({ source: 'chudina', elapsed_ms: '4200' }).elapsed_ms).toBe(4200);
+    expect(normalizeSubmission({ source: 'chudina' }).elapsed_ms).toBeNull();
+    expect(normalizeSubmission({ source: 'chudina', elapsed_ms: 'x' }).elapsed_ms).toBeNull();
+  });
 });
 
 test.describe('normalizeEmail', () => {

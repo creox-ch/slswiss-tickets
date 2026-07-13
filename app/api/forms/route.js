@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { supabaseAdmin } from '../../../lib/supabase';
-import { normalizeSubmission, renderNotificationHtml } from '../../../lib/forms';
+import {
+  normalizeSubmission,
+  renderNotificationHtml,
+  MIN_FILL_MS,
+} from '../../../lib/forms';
 
 export const runtime = 'nodejs';
 
@@ -71,6 +75,12 @@ export async function POST(req) {
       );
     }
 
+    // Анти-бот 1: жёсткий Origin — POST принимаем только с наших доменов.
+    // (CORS блокирует браузер, но не прямой curl/скрипт — отсекаем тут.)
+    if (!origin || !allowedOrigins().includes(origin)) {
+      return json({ ok: false, error: 'forbidden origin' }, 403);
+    }
+
     const body = await req.json().catch(() => ({}));
 
     let sub;
@@ -80,10 +90,15 @@ export async function POST(req) {
       return json({ ok: false, error: String(e.message || e) }, 400);
     }
 
-    // honeypot: скрытое поле заполнено → это бот. Отвечаем «ок», но ничего не пишем.
+    // Анти-бот 2: honeypot — скрытое поле заполнено → бот. Отвечаем «ок», но не пишем.
     if (sub.hp) return json({ ok: true, skipped: true });
 
-    const { hp, ...record } = sub; // hp в БД не пишем
+    // Анти-бот 3: time-trap — форму «заполнили» быстрее человека → бот.
+    if (sub.elapsed_ms != null && sub.elapsed_ms < MIN_FILL_MS) {
+      return json({ ok: true, skipped: true });
+    }
+
+    const { hp, elapsed_ms, ...record } = sub; // служебные поля в БД не пишем
     const { data, error } = await supabaseAdmin
       .from('submissions')
       .insert(record)

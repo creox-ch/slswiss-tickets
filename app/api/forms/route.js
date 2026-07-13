@@ -111,7 +111,9 @@ export async function POST(req) {
       try {
         await resend().emails.send({
           from: process.env.TICKET_FROM_EMAIL || 'SoiLüDi <noreply@slswiss.ch>',
-          to: process.env.FORMS_NOTIFY_EMAIL || 'main@chudina.me',
+          // ВРЕМЕННО (тесты): уведомления шлём на assistant@creox.ch,
+          // пока не создан ящик main@chudina.me. Задать FORMS_NOTIFY_EMAIL — переопределит.
+          to: process.env.FORMS_NOTIFY_EMAIL || 'assistant@creox.ch',
           replyTo: sub.email || undefined,
           subject: `Заявка · ${sub.role || sub.form_key || sub.source}`,
           html: renderNotificationHtml(sub),

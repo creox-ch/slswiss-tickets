@@ -59,6 +59,14 @@ test.describe('normalizeSubmission', () => {
     expect(out.tests).toEqual({ maddi: { total: 80 } });
   });
 
+  test('consent: true только при явном согласии', () => {
+    expect(normalizeSubmission({ source: 'chudina', consent: true }).consent).toBe(true);
+    expect(normalizeSubmission({ source: 'chudina', consent: 'true' }).consent).toBe(true);
+    expect(normalizeSubmission({ source: 'chudina' }).consent).toBe(false);
+    expect(normalizeSubmission({ source: 'chudina', consent: false }).consent).toBe(false);
+    expect(normalizeSubmission({ source: 'chudina', consent: 'on' }).consent).toBe(false);
+  });
+
   test('elapsed_ms парсится в число, мусор → null', () => {
     expect(normalizeSubmission({ source: 'chudina', elapsed_ms: 4200 }).elapsed_ms).toBe(4200);
     expect(normalizeSubmission({ source: 'chudina', elapsed_ms: '4200' }).elapsed_ms).toBe(4200);

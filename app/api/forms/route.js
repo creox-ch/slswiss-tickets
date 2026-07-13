@@ -98,7 +98,15 @@ export async function POST(req) {
       return json({ ok: true, skipped: true });
     }
 
-    const { hp, elapsed_ms, ...record } = sub; // служебные поля в БД не пишем
+    // GDPR / revDSG: без согласия на обработку данных заявку не сохраняем.
+    if (!sub.consent) {
+      return json(
+        { ok: false, error: 'Нужно согласие на обработку данных.' },
+        400
+      );
+    }
+
+    const { hp, elapsed_ms, ...record } = sub; // служебные поля (hp/elapsed) в БД не пишем
     const { data, error } = await supabaseAdmin
       .from('submissions')
       .insert(record)

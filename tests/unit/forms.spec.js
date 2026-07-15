@@ -4,6 +4,8 @@ import {
   normalizeEmail,
   renderNotificationHtml,
   renderTestsHtml,
+  allowedOrigins,
+  DEFAULT_ORIGINS,
 } from '../../lib/forms';
 
 test.describe('normalizeSubmission', () => {
@@ -133,5 +135,68 @@ test.describe('renderNotificationHtml', () => {
     expect(html).toContain('React');
     expect(html).toContain('Результаты тестов');
     expect(html).toContain('PaeI');
+  });
+});
+
+test.describe('allowedOrigins', () => {
+  test('без env — дефолтные сайты платформы (включая creox)', () => {
+    const list = allowedOrigins(undefined);
+    expect(list).toEqual(DEFAULT_ORIGINS);
+    expect(list).toContain('https://creox.ch');
+    expect(list).toContain('https://www.creox.ch');
+    expect(list).toContain('https://creox.vercel.app');
+    expect(list).toContain('https://chudina.me');
+  });
+
+  test('env переопределяет список целиком, пробелы обрезаются', () => {
+    const list = allowedOrigins(' https://creox.ch , https://a.ch ');
+    expect(list).toEqual(['https://creox.ch', 'https://a.ch']);
+    expect(list).not.toContain('https://chudina.me'); // env заменяет дефолт, не дополняет
+  });
+
+  test('пустая env → дефолт (пустой список закрыл бы приём заявок)', () => {
+    expect(allowedOrigins('')).toEqual(DEFAULT_ORIGINS);
+    expect(allowedOrigins('   ')).toEqual(DEFAULT_ORIGINS);
+    expect(allowedOrigins(',,')).toEqual(DEFAULT_ORIGINS);
+  });
+});
+
+test.describe('заявка с лендинга creox', () => {
+  const brief = () => ({
+    source: 'creox',
+    form_key: 'brief',
+    source_url: 'https://creox.ch/',
+    kind: 'lead',
+    role: 'Festival',
+    name: 'Hans Muster',
+    email: 'Hans@Example.CH',
+    consent: true,
+    hp: '',
+    elapsed_ms: 9000,
+    payload: { company: 'Muster AG', event_type: 'Festival', message: 'Wir planen ein Festival.', lang: 'de' },
+  });
+
+  test('нормализуется в строку submissions', () => {
+    const out = normalizeSubmission(brief());
+    expect(out.source).toBe('creox');
+    expect(out.form_key).toBe('brief');
+    expect(out.kind).toBe('lead');
+    expect(out.name).toBe('Hans Muster');
+    expect(out.email).toBe('hans@example.ch');
+    expect(out.consent).toBe(true);
+    expect(out.hp).toBeNull(); // пустой honeypot → null, заявка не бот
+    expect(out.payload.company).toBe('Muster AG');
+    expect(out.payload.message).toBe('Wir planen ein Festival.');
+  });
+
+  test('бот заполнил honeypot → hp попадает в sub (route отсечёт)', () => {
+    const out = normalizeSubmission({ ...brief(), hp: 'http://spam.example' });
+    expect(out.hp).toBe('http://spam.example');
+  });
+
+  test('без галочки согласия consent=false (route ответит 400)', () => {
+    expect(normalizeSubmission({ ...brief(), consent: false }).consent).toBe(false);
+    const { consent, ...noConsent } = brief();
+    expect(normalizeSubmission(noConsent).consent).toBe(false);
   });
 });

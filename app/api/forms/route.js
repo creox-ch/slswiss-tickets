@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../../../lib/supabase';
 import {
   normalizeSubmission,
   renderNotificationHtml,
+  allowedOrigins as resolveOrigins,
   MIN_FILL_MS,
 } from '../../../lib/forms';
 
@@ -18,21 +19,9 @@ export const runtime = 'nodejs';
  * Ошибка письма НЕ валит запись заявки (ловим и логируем) — как в sendTicketEmail.
  */
 
-const DEFAULT_ORIGINS = [
-  'https://chudina.me',
-  'https://www.chudina.me',
-  'https://atlasintegra.ch',
-  'https://www.atlasintegra.ch',
-  'http://localhost:3000',
-];
-
+/** Белый список origins (дефолт + переопределение через env) — см. lib/forms. */
 function allowedOrigins() {
-  const env = process.env.FORMS_ALLOWED_ORIGINS;
-  if (!env) return DEFAULT_ORIGINS;
-  return env
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return resolveOrigins(process.env.FORMS_ALLOWED_ORIGINS);
 }
 
 /** CORS-заголовки для конкретного origin (ACAO только если origin в белом списке). */

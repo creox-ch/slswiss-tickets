@@ -54,7 +54,9 @@ create table if not exists public.submissions (
   tests       jsonb,                         -- результаты психотестов (team, практики)
   profile_id  uuid references public.profiles(id) on delete set null, -- опц. связь с участником
   status      text not null default 'new'
-                check (status in ('new','in_progress','done','spam','archived'))
+                check (status in ('new','in_progress','done','spam','archived')),
+  -- согласие на обработку перс. данных (GDPR/revDSG); created_at = момент согласия
+  consent     boolean not null default false
 );
 
 create index if not exists submissions_created_idx on public.submissions (created_at desc);

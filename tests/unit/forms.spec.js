@@ -146,6 +146,8 @@ test.describe('allowedOrigins', () => {
     expect(list).toContain('https://www.creox.ch');
     expect(list).toContain('https://creox.vercel.app');
     expect(list).toContain('https://chudina.me');
+    expect(list).toContain('https://frankenplatz.vercel.app'); // форум шлёт заявки сюда
+    expect(list).toContain('https://frankenplatz.ch');
   });
 
   test('env переопределяет список целиком, пробелы обрезаются', () => {

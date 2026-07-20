@@ -7,6 +7,7 @@ import {
   renderTestsHtml,
   allowedOrigins,
   DEFAULT_ORIGINS,
+  MIN_FILL_MS,
 } from '../../lib/forms';
 
 test.describe('normalizeSubmission', () => {
@@ -189,6 +190,10 @@ test.describe('allowedOrigins', () => {
     expect(list).toContain('https://chudina.me');
     expect(list).toContain('https://frankenplatz.vercel.app'); // форум шлёт заявки сюда
     expect(list).toContain('https://frankenplatz.ch');
+    // Atlas Integra: корень редиректит на www, но форма живёт и на vercel.app
+    expect(list).toContain('https://atlasintegra.ch');
+    expect(list).toContain('https://www.atlasintegra.ch');
+    expect(list).toContain('https://atlasintegra.vercel.app');
   });
 
   test('env переопределяет список целиком, пробелы обрезаются', () => {
@@ -241,5 +246,70 @@ test.describe('заявка с лендинга creox', () => {
     expect(normalizeSubmission({ ...brief(), consent: false }).consent).toBe(false);
     const { consent, ...noConsent } = brief();
     expect(normalizeSubmission(noConsent).consent).toBe(false);
+  });
+});
+
+test.describe('заявка в правление Atlas Integra', () => {
+  const application = () => ({
+    source: 'atlasintegra',
+    form_key: 'vorstand',
+    source_url: 'https://www.atlasintegra.ch/apply.html',
+    kind: 'application',
+    role: 'Правление (Vorstand)',
+    name: 'Мария Иванова',
+    email: '  Maria@Example.CH ',
+    phone: '+41 79 123 45 67',
+    consent: true,
+    hp: '',
+    elapsed_ms: 12000,
+    payload: {
+      Отчество: 'Петровна',
+      'Почему хочешь вступить': 'Прошла интеграцию, хочу помогать другим.',
+      'Чем можешь быть полезен': 'Опыт HR, связи в кантоне Цюрих.',
+      'Опыт и идеи': 'Могу вести языковой клуб.',
+    },
+  });
+
+  test('нормализуется в строку submissions', () => {
+    const out = normalizeSubmission(application());
+    expect(out.source).toBe('atlasintegra');
+    expect(out.form_key).toBe('vorstand');
+    expect(out.kind).toBe('application');
+    expect(out.role).toBe('Правление (Vorstand)');
+    expect(out.name).toBe('Мария Иванова');
+    expect(out.email).toBe('maria@example.ch'); // trim + lowercase
+    expect(out.phone).toBe('+41 79 123 45 67');
+    expect(out.consent).toBe(true);
+    expect(out.hp).toBeNull(); // пустой honeypot → не бот
+    expect(out.payload['Почему хочешь вступить']).toContain('помогать другим');
+    expect(out.payload.Отчество).toBe('Петровна');
+    // форма правления не шлёт отчёт заявителю (это только у калькуляторов форума)
+    expect(out.send_report).toBe(false);
+  });
+
+  test('бот заполнил honeypot → hp попадает в sub (route отсечёт)', () => {
+    const out = normalizeSubmission({ ...application(), hp: 'http://spam.example' });
+    expect(out.hp).toBe('http://spam.example');
+  });
+
+  test('мгновенный сабмит ловится time-trap (route отсечёт)', () => {
+    const out = normalizeSubmission({ ...application(), elapsed_ms: 300 });
+    expect(out.elapsed_ms).toBe(300);
+    expect(out.elapsed_ms).toBeLessThan(MIN_FILL_MS);
+  });
+
+  test('без галочки согласия consent=false (route ответит 400)', () => {
+    expect(normalizeSubmission({ ...application(), consent: false }).consent).toBe(false);
+    const { consent, ...noConsent } = application();
+    expect(normalizeSubmission(noConsent).consent).toBe(false);
+  });
+
+  test('письмо-уведомление содержит контакт и ответы кандидата', () => {
+    const html = renderNotificationHtml(normalizeSubmission(application()));
+    expect(html).toContain('Мария Иванова');
+    expect(html).toContain('maria@example.ch');
+    expect(html).toContain('Правление (Vorstand)');
+    expect(html).toContain('Чем можешь быть полезен');
+    expect(html).toContain('Опыт HR');
   });
 });

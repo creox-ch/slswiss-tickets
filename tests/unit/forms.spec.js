@@ -3,6 +3,7 @@ import {
   normalizeSubmission,
   normalizeEmail,
   renderNotificationHtml,
+  renderReportHtml,
   renderTestsHtml,
   allowedOrigins,
   DEFAULT_ORIGINS,
@@ -74,6 +75,46 @@ test.describe('normalizeSubmission', () => {
     expect(normalizeSubmission({ source: 'chudina', elapsed_ms: '4200' }).elapsed_ms).toBe(4200);
     expect(normalizeSubmission({ source: 'chudina' }).elapsed_ms).toBeNull();
     expect(normalizeSubmission({ source: 'chudina', elapsed_ms: 'x' }).elapsed_ms).toBeNull();
+  });
+});
+
+test.describe('отчёт отправителю (калькуляторы форума)', () => {
+  test('send_report: true только при явной просьбе', () => {
+    expect(normalizeSubmission({ source: 'forum', send_report: true }).send_report).toBe(true);
+    expect(normalizeSubmission({ source: 'forum', send_report: 'true' }).send_report).toBe(true);
+    expect(normalizeSubmission({ source: 'forum' }).send_report).toBe(false);
+    expect(normalizeSubmission({ source: 'forum', send_report: false }).send_report).toBe(false);
+    // прочие сайты платформы не должны случайно включить авто-ответ
+    expect(normalizeSubmission({ source: 'chudina' }).send_report).toBe(false);
+  });
+
+  test('письмо-отчёт содержит результаты расчёта и ссылку на форум', () => {
+    const html = renderReportHtml({
+      source: 'forum',
+      form_key: 'calc-pension',
+      role: 'Пенсия в Швейцарии',
+      email: 'a@b.ch',
+      payload: { 'Пенсия всего, CHF/мес': "4'506", 'AHV (1-я опора)': "1'368" },
+    });
+    expect(html).toContain('Пенсия в Швейцарии');
+    expect(html).toContain('Пенсия всего, CHF/мес');
+    // швейцарский разделитель тысяч — апостроф, escapeHtml превращает его
+    // в &#39; (в почтовом клиенте отрисуется обратно как 4'506)
+    expect(html).toContain('4&#39;506');
+    expect(html).toContain('1&#39;368');
+    expect(html).toContain('frankenplatz.ch');
+    expect(html).toContain('не индивидуальная финансовая консультация');
+  });
+
+  test('экранирует пользовательский ввод (XSS не проходит)', () => {
+    const html = renderReportHtml({
+      source: 'forum',
+      role: '<script>alert(1)</script>',
+      payload: { '<img onerror=x>': '<b>bad</b>' },
+    });
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<img onerror=x>');
+    expect(html).toContain('&lt;script&gt;');
   });
 });
 

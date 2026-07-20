@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../../../lib/supabase';
 import {
   normalizeSubmission,
   renderNotificationHtml,
+  renderReportHtml,
   allowedOrigins as resolveOrigins,
   MIN_FILL_MS,
 } from '../../../lib/forms';
@@ -95,7 +96,8 @@ export async function POST(req) {
       );
     }
 
-    const { hp, elapsed_ms, ...record } = sub; // служебные поля (hp/elapsed) в БД не пишем
+    // служебные поля (hp/elapsed/send_report) в БД не пишем
+    const { hp, elapsed_ms, send_report, ...record } = sub;
     const { data, error } = await supabaseAdmin
       .from('submissions')
       .insert(record)
@@ -117,6 +119,22 @@ export async function POST(req) {
         });
       } catch (mailErr) {
         console.error('[forms] notify email failed', mailErr);
+      }
+
+      // Отчёт САМОМУ отправителю — только если форма явно попросила (калькуляторы
+      // форума). Содержимое собирает сервер из payload, клиент текст не задаёт.
+      // Ошибка письма не валит заявку — она уже сохранена.
+      if (sub.send_report && sub.email) {
+        try {
+          await resend().emails.send({
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            to: sub.email,
+            subject: `Твой расчёт · ${sub.role || sub.form_key || 'Frankenplatz'}`,
+            html: renderReportHtml(sub),
+          });
+        } catch (reportErr) {
+          console.error('[forms] report email failed', reportErr);
+        }
       }
     }
 

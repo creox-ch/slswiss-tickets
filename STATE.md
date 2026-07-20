@@ -1,13 +1,15 @@
 # STATE.md — читай меня первым после сбоя
 
 > Точка восстановления проекта. Если сессия/Cowork потеряны — начни отсюда.
-> Принцип: **реальность (git/деплой/код на диске) важнее заметок.** Этот файл сверен с кодом 2026-07-03.
+> Принцип: **реальность (git/деплой/код на диске) важнее заметок.** Этот файл сверен с кодом 2026-07-20.
 
 ---
 
 ## Что это за проект
 
-Тестовый билетный стенд **SoiLüDi (SLS)**: оплата → QR-билет на email → сканер на входе. Стек: **Next.js 14 (app router) + Supabase + Resend + Payrexx**.
+Изначально — тестовый билетный стенд **SoiLüDi (SLS)**: оплата → QR-билет на email → сканер на входе. Стек: **Next.js 14 (app router) + Supabase + Resend + Payrexx**.
+
+С июля 2026 у репо **вторая роль: серверный бэкенд платформы Creox.** Сайты платформы статические (Vercel/GH Pages) и не умеют держать секреты, поэтому все формы четырёх сайтов шлют заявки сюда — в `POST /api/forms` → таблица `submissions` («база аудитории», решение 2026-07-10). Сюда же по решению 2026-07-03 приедет подписка на Payrexx. Держи это в голове: правка в `lib/forms.js` задевает chudina, atlasintegra, creox и frankenplatz разом.
 
 - **Репозиторий:** `creox-ch/slswiss-tickets` (GitHub, **public** — см. «Закрытые решения»)
 - **Деплой (прод):** https://slswiss-tickets.vercel.app — Vercel, команда **creox** (план Hobby). Git-интеграция: `git push` в `main` → авто-деплой.
@@ -15,11 +17,35 @@
 
 ---
 
-## 🔴 ГДЕ МЫ СЕЙЧАС (на 2026-07-03)
+## 🔴 ГДЕ МЫ СЕЙЧАС (на 2026-07-20)
 
-**Работает и задеплоено:** выпуск билета, QR-токен, письмо с QR (hosted-картинка `/api/qr` + PNG-вложение), сканер `/scan`, проверка входа (`valid → already → not_paid → invalid`). Email+Payrexx-доступ настроены 2026-06-29 (X-API-KEY, hex-подпись вебхука).
+**Работает и задеплоено:** выпуск билета, QR-токен, письмо с QR (hosted-картинка `/api/qr` + PNG-вложение), сканер `/scan`, проверка входа (`valid → already → not_paid → invalid`). Email+Payrexx-доступ настроены 2026-06-29 (X-API-KEY, hex-подпись вебхука). Плюс приём заявок с форм платформы (`/api/forms`) — проверен вживую с четырёх сайтов.
 
-**2026-07-03 — ревью проекта + фиксы (этот спринт):**
+### ⏰ Срочное
+
+**Payrexx trial истекает ~2026-07-24** — нужен платный план. Иначе встают и продажа билетов, и подписка, которую только предстоит строить. Решение за Иванной, тянется с 2026-06-29.
+
+### 🚧 Чем заблокированы (на 2026-07-20)
+
+- **Почтовые ящики.** `main@chudina.me`, `main@atlasintegra.ch`, `info@frankenplatz.ch` опубликованы/нужны, но не существуют. Задача передана админу Google Workspace 2026-07-20 (домены в Workspace + группы + MX Google). Ждём.
+- **Отправители.** Resend **Pro** оплачен (2026-07-20) — прежний лимит «1 домен на free-аккаунт» снят, можно верифицировать `frankenplatz.ch` / `atlasintegra.ch` / `creox.ch` и уйти от общего `noreply@slswiss.ch`. Записи Resend живут на поддомене `send.` и с MX Google не конфликтуют.
+- Из-за отправителя не сделан **отчёт калькулятора на почту пользователю** (форум обещает его в UI; сейчас письмо уходит только админу).
+
+### 2026-07-13…17 — приём заявок с форм платформы (`/api/forms`)
+
+- `POST /api/forms` → `public.submissions` + письмо-уведомление. CORS (формы на чужих доменах), service_role, ошибка письма не валит запись заявки.
+- Анти-бот тремя дешёвыми слоями: жёсткий Origin-чек (CORS не спасает от curl), honeypot, time-trap (`MIN_FILL_MS`).
+- **GDPR/revDSG:** без `consent` заявка не сохраняется (400). Колонка `submissions.consent`, `created_at` = момент согласия.
+- Подключены и проверены end-to-end: chudina (`team`), creox (`brief`), форум frankenplatz (`calc-pension`). Origins — в `DEFAULT_ORIGINS` (`lib/forms.js`).
+- 🐛 Фикс `bf94cb7`: `FORMS_ALLOWED_ORIGINS` из одних пустышек (`,,`) давала пустой белый список → **все заявки в 403**. Теперь пустой после фильтрации список → откат на `DEFAULT_ORIGINS`. Ронял CI с 15.07.
+- Скилл `.claude/skills/add-form-origin` — подключение формы нового сайта (origins + тесты + env-ловушка).
+- ⚠ В `submissions` осталась тестовая строка `test-forum-pilot@example.com` — убрать.
+
+### 2026-07-12 — security
+
+Удалён dev-бэкдор `app/api/dev/issue` (выпускал `paid`-билет без оплаты) и диагностический GET из `payrexx/create`, отдававший куски секретов (`2f3bc98`). Осталось убрать `DEV_ISSUE_TOKEN` из env Vercel — руками.
+
+### 2026-07-03 — ревью проекта + фиксы:
 - 🐛 Гонка двух сканеров: `checkin` теперь проверяет результат `update` (`.select()`), проигравший получает `already`, а не второй «✅ Вход».
 - 🐛 Сбой БД больше не выглядит как «билет не найден»: `maybeSingle()` + отдельная обработка `error` в checkin и вебхуке.
 - 🐛 Вебхук при НАШЕЙ ошибке (БД/Payrexx API) отвечает **500** → Payrexx ретраит, оплата не теряется молча (обработка идемпотентна). Раньше был 200 — событие пропадало.
@@ -31,20 +57,27 @@
 - ✅ Тесты: Playwright (unit: подпись вебхука, парсер form-data, escapeHtml; e2e: сканер и покупка с мокнутым API) + CI GitHub Actions (`.github/workflows/test.yml`: build + tests).
 - 🛡️ GitHub: включена branch protection на `main` (оба репо creox-ch): PR + 1 ревью для не-админов; админы пушат напрямую.
 
-**Следующий шаг:** часть 2 ТЗ — подписка 19 CHF/мес на **Payrexx** (решение 2026-07-03, ТЗ переписано). Перед боевым событием с билетами — чек-лист ниже. ⚠ Payrexx trial истекает ~2026-07-24 — нужен платный план.
+### Что дальше (не начато)
 
-**Чек-лист перед продом:**
-1. ✅ Удалено 2026-07-12: `app/api/dev/` и `GET`-диагностика в `app/api/payrexx/create/route.js`. ⬜ Осталось: убрать `DEV_ISSUE_TOKEN` из env Vercel (руками).
-2. Задать `PAYREXX_WEBHOOK_SIGNING_KEY` (и убрать `ALLOW_UNSIGNED_WEBHOOKS`, если ставили).
-3. Задать `CHECKIN_STAFF_KEY` и раздать его персоналу на входе.
-4. Задать реальную цену `TICKET_PRICE_RAPPEN`.
-5. Закоммитить `package-lock.json` (нужен npm локально или через CI) — воспроизводимые сборки.
+1. **Часть 2 ТЗ — подписка 19 CHF/мес на Payrexx.** Решение 2026-07-03: Payrexx, НЕ Stripe (единый провайдер платформы), ТЗ переписано. Нужны: таблица `subscriptions`, `/api/subscribe`, вебхук подписки (`active`/`cancelled`/`past_due`, `current_period_end`), письма, проверка доступа. Открыто: привязка к `user_id` Supabase Auth или только к email.
+2. **Отчёт калькулятора на почту юзеру** — по флагу `send_report`, письмо генерит сервер из `payload` (клиент не диктует текст, иначе спам-релей). Ждёт отправителя.
+3. Захват e-mail на остальные 4 калькулятора форума (budget, rent-vs-buy, taxes, shares) — каждому свой `form_key`.
+4. Развести получателя писем по `source` (сейчас всё на `assistant@creox.ch`).
+5. Вид NocoDB/Baserow поверх `submissions` — чтобы не выдавать коллегам полный доступ к Supabase.
+6. Чистка `pending`-билетов от брошенных оплат (cron/периодический delete старше суток).
+7. CI-гейт безопасности: `npm audit --audit-level=high`, Dependabot, gitleaks. Полный аудит зависимостей не делался — вручную проверен только Next.js (**14.2.35**, CVE-2025-29927 не грозит: закрыта в 14.2.25 + middleware не используется).
 
-**Часть 2 ТЗ (подписка SLS 19 CHF/мес) — ещё не реализована.** ⚠ Решение 2026-07-03: делаем на **Payrexx** (единый провайдер платформы), НЕ на Stripe — ТЗ обновлено.
+**Чек-лист перед боевым событием с билетами:**
+1. ✅ Код dev-бэкдора удалён 2026-07-12. ⬜ Убрать `DEV_ISSUE_TOKEN` из env Vercel (руками).
+2. ✅ `PAYREXX_WEBHOOK_SIGNING_KEY` задан (2026-06-29). Убедиться, что `ALLOW_UNSIGNED_WEBHOOKS` не выставлен.
+3. ⬜ Задать `CHECKIN_STAFF_KEY` и раздать персоналу на входе.
+4. ⬜ Задать реальную цену `TICKET_PRICE_RAPPEN`.
+5. ✅ `package-lock.json` закоммичен (`7abea21`), CI на `npm ci` с кэшем.
+6. ⬜ Платный план Payrexx (см. «Срочное»).
 
 ---
 
-## Реальная структура файлов (сверено с диском 2026-06-24)
+## Реальная структура файлов (сверено с диском 2026-07-20)
 
 ```
 slswiss-tickets/
@@ -56,18 +89,23 @@ slswiss-tickets/
   next.config.js
   .env.example                    все переменные с пояснениями
   .gitignore                      node_modules, .next, .env, .env.local, .vercel
-  supabase-schema.sql             таблица tickets + RLS
+  package-lock.json               закоммичен (7abea21) — воспроизводимые сборки, CI на npm ci
+  .claude/skills/add-form-origin/ скилл: подключить форму нового сайта к /api/forms
+  supabase-schema.sql             таблицы tickets + submissions (база аудитории) + RLS
   docs/
     TZ-tickets-subscription.md    ТЗ (источник истины, копия Google-дока)
   lib/
     payrexx.js                    HMAC-подписи, createGateway, getTransaction, verifyWebhookSignature
     supabase.js                   ЛЕНИВЫЙ service_role клиент (Proxy) — экспорт supabaseAdmin
-    ticket.js                     ЛЕНИВЫЙ Resend, buildQrDataUrl, sendTicketEmail
+    ticket.js                     ЛЕНИВЫЙ Resend, buildQrDataUrl, sendTicketEmail, escapeHtml
+    forms.js                      чистые хелперы форм: DEFAULT_ORIGINS, allowedOrigins,
+                                  normalizeSubmission, renderNotificationHtml, MIN_FILL_MS
   playwright.config.js            тесты: unit + e2e (webServer: next dev)
   .github/workflows/test.yml      CI: build + Playwright на push/PR в main
   tests/
     unit/payrexx.spec.js          подпись вебхука (fail-closed), unflattenTransaction
     unit/ticket.spec.js           escapeHtml
+    unit/forms.spec.js            origins (в т.ч. env из пустышек), normalizeSubmission, письмо
     e2e/scan.spec.js              сканер: ok/already/invalid + ключ персонала (API мокается)
     e2e/buy.spec.js               покупка: без amount с клиента, 503, /thanks
   app/
@@ -80,6 +118,8 @@ slswiss-tickets/
       payrexx/webhook/route.js    POST: приём вебхука, верификация (fail-closed), QR, email; 500 при нашей ошибке → ретрай Payrexx
       checkin/route.js            POST {token} (+X-Staff-Key) → result: ok|already|not_paid|invalid|auth
       qr/route.js                 GET ?t=TOKEN → PNG с QR (для картинки в письме)
+      forms/route.js              POST: заявки с форм платформы → submissions + письмо;
+                                  OPTIONS (CORS preflight); 403 на чужой origin, 400 без consent
 ```
 > `app/api/dev/issue` (dev-выпуск без оплаты) удалён 2026-07-12 (security). Тест сканера — реальной оплатой Payrexx.
 
@@ -140,6 +180,8 @@ node --check lib/*.js app/api/**/route.js
 | `ALLOW_UNSIGNED_WEBHOOKS` | =1 временно разрешает вебхук без подписи (только настройка) | ⬜ не задавать без нужды |
 | `TICKET_PRICE_RAPPEN` | цена билета в раппенах (default 100 = 1.00 CHF) | ⬜ опционально |
 | `CHECKIN_STAFF_KEY` | ключ персонала для чек-ина; пусто = без ключа | ⬜ задать перед событием |
+| `FORMS_ALLOWED_ORIGINS` | origins форм через запятую; **целиком заменяет** `DEFAULT_ORIGINS` — задав её, не забудь дописывать туда каждый новый сайт | ⬜ не задана (работает дефолт) |
+| `FORMS_NOTIFY_EMAIL` | куда слать уведомления о заявках; по умолчанию `assistant@creox.ch` (заглушка) | ⬜ задать, когда заведут ящики |
 
 ---
 
@@ -174,10 +216,16 @@ node --check lib/*.js app/api/**/route.js
 - **amount в раппенах**, тестовая сумма 1.00 CHF (100).
 - **Репозиторий public** — приватный org-repo на Vercel требует план Pro; команда creox на Hobby. Секретов в репо нет (только публичный URL Supabase; ключи в env).
 - **dev/issue** — был временный тест-эндпоинт без Payrexx (выпускал `paid`-билет по токену в URL). **Удалён 2026-07-12** (security): убраны `app/api/dev` и GET-диагностика из `payrexx/create`. Осталось убрать `DEV_ISSUE_TOKEN` из env Vercel.
+- **Один endpoint `/api/forms` на все сайты платформы**, не по эндпоинту на сайт — источник различаем полями `source`/`form_key`/`source_url`. Единая таблица `submissions`: раздельные хранилища ломают сегментацию аудитории (решение 2026-07-10).
+- **Заявка без `consent` не сохраняется** (400) — GDPR/revDSG. `created_at` служит меткой момента согласия.
+- **Жёсткий Origin-чек в дополнение к CORS** — CORS ограничивает браузер, но не curl/скрипт.
+- **Письмо-уведомление не валит заявку** — как с билетами: Resend упал, запись всё равно в БД.
+- **Пустой белый список origins недопустим** — откатываемся на `DEFAULT_ORIGINS`, иначе кривая env кладёт приём заявок со всех сайтов разом (`bf94cb7`).
 
 ---
 
 ## История STATE.md
 
+- **2026-07-20** — сверка с кодом после двух недель работы «мимо STATE». Зафиксировано: у репо появилась вторая роль — бэкенд форм платформы (`/api/forms` + `submissions` + `lib/forms.js` + скилл `add-form-origin`), подключены 4 сайта; удалён dev-бэкдор (12.07); env-таблица дополнена `FORMS_*`; чек-лист перед продом актуализирован. Внешние решения: Resend **Pro** оплачен (лимит доменов снят), домен `frankenplatz.ch` куплен, задача на почтовые ящики передана админу Google Workspace. Висит срочное: платный план Payrexx (~24.07).
 - **2026-07-03** — ревью проекта + спринт фиксов: гонка сканеров, сбой БД ≠ «не найден», вебхук 500 на нашей ошибке, цена server-side, fail-closed подпись, ключ персонала, `/thanks`, экранирование письма, лимит `/api/qr`, Playwright-тесты + CI, branch protection на `main` (оба репо). Env-таблица актуализирована (Resend/Payrexx заданы 2026-06-29).
 - **2026-06-24** — создан. Сверено с кодом и деплоем. Зафиксировано: стенд задеплоен и работает (билет+сканер через dev/issue); оплата Payrexx блокирована активацией PSP (422); env-статус; расхождения ТЗ↔код; ограничения среды (push только из PowerShell, bash-mount показывает устаревшие копии). ТЗ перенесено в `docs/`.

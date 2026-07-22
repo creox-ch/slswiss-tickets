@@ -6,6 +6,7 @@ import {
   renderNotificationHtml,
   renderReportHtml,
   renderRegistrationHtml,
+  renderSpeakerHtml,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   shouldNotifyImmediately,
@@ -147,6 +148,25 @@ export async function POST(req) {
           });
         } catch (regErr) {
           console.error('[forms] registration email failed', regErr);
+        }
+      }
+
+      // Подтверждение спикеру — он ценный лид, нельзя оставлять без ответа.
+      if (sub.form_key === 'speaker' && sub.email) {
+        try {
+          await resend().emails.send({
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            to: sub.email,
+            replyTo: notifyEmailFor(
+              sub.source,
+              process.env.FORMS_NOTIFY_MAP,
+              process.env.FORMS_NOTIFY_EMAIL
+            ),
+            subject: 'Анкета спикера получена · Frankenplatz 2026',
+            html: renderSpeakerHtml(sub),
+          });
+        } catch (spErr) {
+          console.error('[forms] speaker email failed', spErr);
         }
       }
 

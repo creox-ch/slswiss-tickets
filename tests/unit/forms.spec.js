@@ -5,6 +5,7 @@ import {
   renderNotificationHtml,
   renderReportHtml,
   renderRegistrationHtml,
+  renderSpeakerHtml,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -134,6 +135,35 @@ test.describe('письмо ранней регистрации', () => {
 
   test('экранирует пользовательский ввод', () => {
     const html = renderRegistrationHtml({
+      name: '<script>alert(1)</script>',
+      payload: { '<img onerror=x>': '<b>bad</b>' },
+    });
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<img onerror=x>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+test.describe('письмо спикеру', () => {
+  test('подтверждает получение и обещает срок ответа', () => {
+    const html = renderSpeakerHtml({
+      form_key: 'speaker', name: 'Пётр', email: 'p@b.ch',
+      payload: { 'Тема': 'Пенсия для поздних мигрантов', 'День': 'День 1' },
+    });
+    expect(html).toContain('Пётр');
+    expect(html).toContain('Анкета спикера получена');
+    expect(html).toContain('в течение недели');
+    expect(html).toContain('Пенсия для поздних мигрантов');
+  });
+
+  test('без имени и без payload не ломается', () => {
+    const html = renderSpeakerHtml({ form_key: 'speaker', email: 'p@b.ch' });
+    expect(html).toContain('Спасибо!');
+    expect(html).toContain('в течение недели');
+  });
+
+  test('экранирует пользовательский ввод', () => {
+    const html = renderSpeakerHtml({
       name: '<script>alert(1)</script>',
       payload: { '<img onerror=x>': '<b>bad</b>' },
     });

@@ -4,6 +4,7 @@ import {
   normalizeEmail,
   renderNotificationHtml,
   renderReportHtml,
+  renderRegistrationHtml,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -110,6 +111,35 @@ test.describe('маршрутизация уведомлений по сайту
     expect(shouldNotifyImmediately({ form_key: 'speaker' })).toBe(true);
     expect(shouldNotifyImmediately({ form_key: 'calc-pension' })).toBe(true);
     expect(shouldNotifyImmediately({})).toBe(true);
+  });
+});
+
+test.describe('письмо ранней регистрации', () => {
+  test('честно говорит, что это не билет, и перечисляет выбор', () => {
+    const html = renderRegistrationHtml({
+      source: 'forum', form_key: 'registration', name: 'Аня', email: 'a@b.ch',
+      payload: { 'Интересует': 'Оба дня', 'Мест': '2' },
+    });
+    expect(html).toContain('Аня');
+    expect(html).toContain('ещё не билет');
+    expect(html).toContain('Оба дня');
+    expect(html).toContain('frankenplatz.ch');
+  });
+
+  test('без имени письмо не ломается', () => {
+    const html = renderRegistrationHtml({ form_key: 'registration', email: 'a@b.ch', payload: {} });
+    expect(html).toContain('Привет!');
+    expect(html).toContain('ранней регистрации');
+  });
+
+  test('экранирует пользовательский ввод', () => {
+    const html = renderRegistrationHtml({
+      name: '<script>alert(1)</script>',
+      payload: { '<img onerror=x>': '<b>bad</b>' },
+    });
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<img onerror=x>');
+    expect(html).toContain('&lt;script&gt;');
   });
 });
 

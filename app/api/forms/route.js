@@ -5,6 +5,7 @@ import {
   normalizeSubmission,
   renderNotificationHtml,
   renderReportHtml,
+  renderRegistrationHtml,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   shouldNotifyImmediately,
@@ -134,6 +135,21 @@ export async function POST(req) {
       // Отчёт САМОМУ отправителю — только если форма явно попросила (калькуляторы
       // форума). Содержимое собирает сервер из payload, клиент текст не задаёт.
       // Ошибка письма не валит заявку — она уже сохранена.
+      // Подтверждение ранней регистрации — человек должен получить письмо,
+      // а не только надпись на экране.
+      if (sub.form_key === 'registration' && sub.email) {
+        try {
+          await resend().emails.send({
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            to: sub.email,
+            subject: 'Ты в списке ранней регистрации · Frankenplatz 2026',
+            html: renderRegistrationHtml(sub),
+          });
+        } catch (regErr) {
+          console.error('[forms] registration email failed', regErr);
+        }
+      }
+
       if (sub.send_report && sub.email) {
         try {
           await resend().emails.send({

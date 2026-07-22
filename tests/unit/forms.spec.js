@@ -5,8 +5,13 @@ import {
   renderNotificationHtml,
   renderReportHtml,
   renderTestsHtml,
+  renderDigestHtml,
   allowedOrigins,
+  notifyEmailFor,
+  parseNotifyMap,
+  shouldNotifyImmediately,
   DEFAULT_ORIGINS,
+  DEFAULT_NOTIFY_EMAIL,
   MIN_FILL_MS,
 } from '../../lib/forms';
 
@@ -76,6 +81,54 @@ test.describe('normalizeSubmission', () => {
     expect(normalizeSubmission({ source: 'chudina', elapsed_ms: '4200' }).elapsed_ms).toBe(4200);
     expect(normalizeSubmission({ source: 'chudina' }).elapsed_ms).toBeNull();
     expect(normalizeSubmission({ source: 'chudina', elapsed_ms: 'x' }).elapsed_ms).toBeNull();
+  });
+});
+
+test.describe('маршрутизация уведомлений по сайту', () => {
+  const MAP = 'forum=info@frankenplatz.ch, chudina=main@chudina.me';
+
+  test('адрес выбирается по source', () => {
+    expect(notifyEmailFor('forum', MAP, 'fallback@x.ch')).toBe('info@frankenplatz.ch');
+    expect(notifyEmailFor('chudina', MAP, 'fallback@x.ch')).toBe('main@chudina.me');
+    expect(notifyEmailFor('FORUM', MAP, 'fallback@x.ch')).toBe('info@frankenplatz.ch'); // регистр
+  });
+
+  test('нет в карте → общий ящик, нет и его → дефолт', () => {
+    expect(notifyEmailFor('creox', MAP, 'fallback@x.ch')).toBe('fallback@x.ch');
+    expect(notifyEmailFor('creox', MAP, '')).toBe(DEFAULT_NOTIFY_EMAIL);
+    expect(notifyEmailFor('forum', '', 'fallback@x.ch')).toBe('fallback@x.ch');
+    expect(notifyEmailFor(null, null, null)).toBe(DEFAULT_NOTIFY_EMAIL);
+  });
+
+  test('кривая карта не роняет уведомления', () => {
+    expect(parseNotifyMap('мусор,=,a=,=b')).toEqual({});
+    expect(parseNotifyMap('forum=a@b.ch,,мусор')).toEqual({ forum: 'a@b.ch' });
+  });
+
+  test('подписки не шлём поштучно, остальное — шлём', () => {
+    expect(shouldNotifyImmediately({ form_key: 'newsletter' })).toBe(false);
+    expect(shouldNotifyImmediately({ form_key: 'speaker' })).toBe(true);
+    expect(shouldNotifyImmediately({ form_key: 'calc-pension' })).toBe(true);
+    expect(shouldNotifyImmediately({})).toBe(true);
+  });
+});
+
+test.describe('дневная сводка подписок', () => {
+  test('перечисляет подписчиков и экранирует ввод', () => {
+    const html = renderDigestHtml('forum', [
+      { created_at: '2026-07-22T09:36:00+00:00', email: 'a@b.ch', event: 'frankenplatz-2026-10' },
+      { created_at: '2026-07-22T10:00:00+00:00', email: '<script>alert(1)</script>' },
+    ]);
+    expect(html).toContain('Новые подписчики: 2');
+    expect(html).toContain('a@b.ch');
+    expect(html).toContain('frankenplatz-2026-10');
+    expect(html).toContain('2026-07-22 09:36');
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  test('пустой список не ломает рендер', () => {
+    expect(renderDigestHtml('forum', [])).toContain('Новые подписчики: 0');
   });
 });
 

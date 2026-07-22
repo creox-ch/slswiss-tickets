@@ -6,6 +6,8 @@ import {
   renderNotificationHtml,
   renderReportHtml,
   allowedOrigins as resolveOrigins,
+  notifyEmailFor,
+  shouldNotifyImmediately,
   MIN_FILL_MS,
 } from '../../../lib/forms';
 
@@ -107,18 +109,26 @@ export async function POST(req) {
 
     // Письмо-уведомление — не критично для записи заявки.
     if (process.env.RESEND_API_KEY) {
-      try {
-        await resend().emails.send({
-          from: process.env.TICKET_FROM_EMAIL || 'SoiLüDi <noreply@slswiss.ch>',
-          // ВРЕМЕННО (тесты): уведомления шлём на assistant@creox.ch,
-          // пока не создан ящик main@chudina.me. Задать FORMS_NOTIFY_EMAIL — переопределит.
-          to: process.env.FORMS_NOTIFY_EMAIL || 'assistant@creox.ch',
-          replyTo: sub.email || undefined,
-          subject: `Заявка · ${sub.role || sub.form_key || sub.source}`,
-          html: renderNotificationHtml(sub),
-        });
-      } catch (mailErr) {
-        console.error('[forms] notify email failed', mailErr);
+      // Подписки на рассылку поштучно не шлём — они идут дневной сводкой
+      // (/api/cron/newsletter-digest), иначе ящик забивается.
+      if (shouldNotifyImmediately(sub)) {
+        try {
+          await resend().emails.send({
+            from: process.env.TICKET_FROM_EMAIL || 'SoiLüDi <noreply@slswiss.ch>',
+            // Адрес зависит от сайта-источника (FORMS_NOTIFY_MAP),
+            // иначе заявки форума падали бы в ящик chudina и наоборот.
+            to: notifyEmailFor(
+              sub.source,
+              process.env.FORMS_NOTIFY_MAP,
+              process.env.FORMS_NOTIFY_EMAIL
+            ),
+            replyTo: sub.email || undefined,
+            subject: `Заявка · ${sub.role || sub.form_key || sub.source}`,
+            html: renderNotificationHtml(sub),
+          });
+        } catch (mailErr) {
+          console.error('[forms] notify email failed', mailErr);
+        }
       }
 
       // Отчёт САМОМУ отправителю — только если форма явно попросила (калькуляторы

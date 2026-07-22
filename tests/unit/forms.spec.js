@@ -79,6 +79,39 @@ test.describe('normalizeSubmission', () => {
   });
 });
 
+test.describe('event — привязка заявки к конкретному событию', () => {
+  test('нормализуется в нижний регистр и обрезается', () => {
+    expect(normalizeSubmission({ source: 'forum', event: ' Frankenplatz-2026-10 ' }).event).toBe(
+      'frankenplatz-2026-10'
+    );
+  });
+
+  test('без события → null (заявки вне событий: chudina/creox)', () => {
+    expect(normalizeSubmission({ source: 'chudina' }).event).toBeNull();
+    expect(normalizeSubmission({ source: 'forum', event: '' }).event).toBeNull();
+  });
+
+  test('анкета спикера форума нормализуется целиком', () => {
+    const out = normalizeSubmission({
+      source: 'forum',
+      event: 'frankenplatz-2026-10',
+      form_key: 'speaker',
+      kind: 'application',
+      role: 'Спикер',
+      name: 'Анна',
+      email: 'A@B.ch',
+      consent: true,
+      payload: { Тема: 'Пенсия 3a', День: 'День №1' },
+    });
+    expect(out.event).toBe('frankenplatz-2026-10');
+    expect(out.form_key).toBe('speaker');
+    expect(out.kind).toBe('application');
+    expect(out.role).toBe('Спикер');
+    expect(out.email).toBe('a@b.ch');
+    expect(out.payload['Тема']).toBe('Пенсия 3a');
+  });
+});
+
 test.describe('отчёт отправителю (калькуляторы форума)', () => {
   test('send_report: true только при явной просьбе', () => {
     expect(normalizeSubmission({ source: 'forum', send_report: true }).send_report).toBe(true);

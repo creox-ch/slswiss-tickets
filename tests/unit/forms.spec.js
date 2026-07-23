@@ -173,6 +173,87 @@ test.describe('письмо спикеру', () => {
   });
 });
 
+test.describe('анкета спикера с сайта (site/anketa-form.js → /api/forms)', () => {
+  // Точное тело, которое строит фронтовый модуль анкеты из ответов квиза:
+  // контакт top-level, весь опрос — в payload, form_key='speaker'.
+  const anketa = () => ({
+    source: 'forum',
+    event: 'frankenplatz-2026-10',
+    form_key: 'speaker',
+    kind: 'application',
+    role: 'Анкета спикера',
+    source_url: 'https://frankenplatz.ch/anketa.html',
+    name: 'Ксения Чудина',
+    email: '  Ksenia@Example.CH ',
+    phone: '+41 79 000 00 00',
+    telegram: '@ksenia',
+    consent: true,
+    website: '', // honeypot пуст → живой человек
+    elapsed_ms: 45000, // длинный квиз — заведомо больше MIN_FILL_MS
+    payload: {
+      'Сфера основной экспертизы': 'События и комьюнити',
+      'Твоя килл-строка': 'MOTO-ZÜRICH — 22 000 гостей, с нуля за полгода',
+      'Выбираю': 'Оба дня — с разной темой',
+    },
+  });
+
+  test('нормализуется в строку submissions', () => {
+    const out = normalizeSubmission(anketa());
+    expect(out.source).toBe('forum');
+    expect(out.event).toBe('frankenplatz-2026-10');
+    expect(out.form_key).toBe('speaker'); // тот же путь, что рабочая форма спикера
+    expect(out.kind).toBe('application');
+    expect(out.role).toBe('Анкета спикера');
+    expect(out.name).toBe('Ксения Чудина');
+    expect(out.email).toBe('ksenia@example.ch'); // trim + lowercase
+    expect(out.phone).toBe('+41 79 000 00 00');
+    expect(out.telegram).toBe('@ksenia');
+    expect(out.consent).toBe(true);
+    expect(out.hp).toBeNull(); // пустой honeypot → не бот
+    expect(out.elapsed_ms).toBeGreaterThan(MIN_FILL_MS);
+    expect(out.payload['Твоя килл-строка']).toContain('MOTO-ZÜRICH');
+    expect(out.send_report).toBe(false); // анкета отчёт себе не просит
+  });
+
+  test('без галочки согласия consent=false (route ответит 400)', () => {
+    expect(normalizeSubmission({ ...anketa(), consent: false }).consent).toBe(false);
+    const { consent, ...noConsent } = anketa();
+    expect(normalizeSubmission(noConsent).consent).toBe(false);
+  });
+
+  test('бот: honeypot заполнен → hp в sub (route отсечёт)', () => {
+    expect(normalizeSubmission({ ...anketa(), website: 'http://spam.example' }).hp).toBe(
+      'http://spam.example'
+    );
+  });
+
+  test('мгновенный сабмит ловится time-trap (route отсечёт)', () => {
+    const out = normalizeSubmission({ ...anketa(), elapsed_ms: 300 });
+    expect(out.elapsed_ms).toBeLessThan(MIN_FILL_MS);
+  });
+
+  test('form_key speaker → шлём уведомление сразу (не в дневную сводку)', () => {
+    expect(shouldNotifyImmediately(normalizeSubmission(anketa()))).toBe(true);
+  });
+
+  test('спикеру уходит письмо-подтверждение с его данными', () => {
+    const html = renderSpeakerHtml(normalizeSubmission(anketa()));
+    expect(html).toContain('Ксения Чудина');
+    expect(html).toContain('Анкета спикера получена');
+    expect(html).toContain('в течение недели');
+    expect(html).toContain('MOTO-ZÜRICH — 22 000 гостей, с нуля за полгода');
+  });
+
+  test('оргам уходит уведомление с контактом и ответами анкеты', () => {
+    const html = renderNotificationHtml(normalizeSubmission(anketa()));
+    expect(html).toContain('ksenia@example.ch');
+    expect(html).toContain('@ksenia');
+    expect(html).toContain('+41 79 000 00 00');
+    expect(html).toContain('Сфера основной экспертизы');
+    expect(html).toContain('События и комьюнити');
+  });
+});
+
 test.describe('дневная сводка подписок', () => {
   test('перечисляет подписчиков и экранирует ввод', () => {
     const html = renderDigestHtml('forum', [

@@ -173,6 +173,65 @@ test.describe('письмо спикеру', () => {
   });
 });
 
+test.describe('заявка на сотрудничество с сайта (site/forum-form.js → /api/forms)', () => {
+  // Тело, которое строит forum-form.js из формы #cwForm на collaboration.html:
+  // контакт top-level, роль/референсы/оплата/даты — в payload.
+  const collab = () => ({
+    source: 'forum',
+    event: 'frankenplatz-2026-10',
+    form_key: 'collaboration',
+    kind: 'lead',
+    role: 'Заявка на сотрудничество',
+    source_url: 'https://frankenplatz.ch/collaboration.html',
+    name: 'Марк',
+    email: '  Mark@Example.CH ',
+    telegram: '@markshoots',
+    consent: true,
+    website: '',
+    elapsed_ms: 15000,
+    payload: {
+      Кто: 'Фотограф',
+      Референсы: 'instagram.com/markshoots',
+      'Формат оплаты': 'Фикс + бартер',
+      Стоимость: '800 CHF/день',
+      Даты: '24 октября; 25 октября',
+    },
+  });
+
+  test('нормализуется в строку submissions', () => {
+    const out = normalizeSubmission(collab());
+    expect(out.source).toBe('forum');
+    expect(out.form_key).toBe('collaboration');
+    expect(out.kind).toBe('lead');
+    expect(out.role).toBe('Заявка на сотрудничество');
+    expect(out.name).toBe('Марк');
+    expect(out.email).toBe('mark@example.ch'); // trim + lowercase
+    expect(out.telegram).toBe('@markshoots');
+    expect(out.consent).toBe(true);
+    expect(out.hp).toBeNull(); // пустой honeypot → не бот
+    expect(out.payload['Формат оплаты']).toBe('Фикс + бартер');
+    expect(out.payload['Даты']).toContain('24 октября');
+  });
+
+  test('без согласия consent=false (route ответит 400)', () => {
+    expect(normalizeSubmission({ ...collab(), consent: false }).consent).toBe(false);
+  });
+
+  test('бот: honeypot заполнен → hp в sub (route отсечёт)', () => {
+    expect(normalizeSubmission({ ...collab(), website: 'http://spam.example' }).hp).toBe(
+      'http://spam.example'
+    );
+  });
+
+  test('уведомление оргам содержит контакт и ответы', () => {
+    const html = renderNotificationHtml(normalizeSubmission(collab()));
+    expect(html).toContain('mark@example.ch');
+    expect(html).toContain('@markshoots');
+    expect(html).toContain('Фотограф');
+    expect(html).toContain('Формат оплаты');
+  });
+});
+
 test.describe('анкета спикера с сайта (site/anketa-form.js → /api/forms)', () => {
   // Точное тело, которое строит фронтовый модуль анкеты из ответов квиза:
   // контакт top-level, весь опрос — в payload, form_key='speaker'.

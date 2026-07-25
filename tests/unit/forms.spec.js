@@ -9,6 +9,9 @@ import {
   renderRegistrationText,
   renderSpeakerHtml,
   renderSpeakerText,
+  renderConfirmHtml,
+  renderConfirmText,
+  confirmPageHtml,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -467,6 +470,50 @@ test.describe('plain-text часть писем (анти-спам: text ряд�
     expect(text).toContain('A: 1');
     expect(text).not.toContain('B:');
     expect(text).not.toContain('C:');
+  });
+});
+
+test.describe('double opt-in подписки (письмо + страница подтверждения)', () => {
+  const URL = 'https://slswiss-tickets.vercel.app/api/forms/confirm?token=abc-123';
+
+  test('письмо-подтверждение (html) содержит ссылку и кнопку', () => {
+    const html = renderConfirmHtml({ name: 'Аня', email: 'a@b.ch' }, URL);
+    expect(html).toContain('Подтверди подписку');
+    expect(html).toContain('Подтвердить подписку'); // текст кнопки
+    expect(html).toContain(`href="${URL}"`);
+    expect(html).toContain('Аня');
+  });
+
+  test('письмо-подтверждение экранирует имя (XSS не проходит)', () => {
+    const html = renderConfirmHtml({ name: '<script>alert(1)</script>' }, URL);
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  test('письмо-подтверждение (text): ссылка есть, html нет', () => {
+    const text = renderConfirmText({ name: 'Аня' }, URL);
+    expect(text).toContain('Подтверди подписку');
+    expect(text).toContain(URL);
+    expect(text).toContain('Аня, привет!');
+    expect(text).not.toContain('<');
+    expect(text).not.toContain('>');
+  });
+
+  test('без имени письмо не ломается', () => {
+    expect(renderConfirmHtml({}, URL)).toContain('Привет!');
+    expect(renderConfirmText({}, URL)).toContain('Привет!');
+  });
+
+  test('страница-результат: разные состояния дают свой заголовок и noindex', () => {
+    const ok = confirmPageHtml('confirmed', 'https://frankenplatz.ch');
+    expect(ok).toContain('Подписка подтверждена');
+    expect(ok).toContain('noindex');
+    expect(ok).toContain('href="https://frankenplatz.ch"');
+
+    expect(confirmPageHtml('already')).toContain('Уже подтверждено');
+    expect(confirmPageHtml('invalid')).toContain('недействительна');
+    // неизвестное состояние → безопасный fallback на invalid
+    expect(confirmPageHtml('чтотонетак')).toContain('недействительна');
   });
 });
 

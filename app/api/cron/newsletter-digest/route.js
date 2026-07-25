@@ -40,10 +40,13 @@ export async function GET(req) {
   try {
     const since = new Date(Date.now() - DIGEST_WINDOW_HOURS * 3600 * 1000).toISOString();
 
+    // Только ПОДТВЕРЖДённые подписки (double opt-in): 'pending' без перехода
+    // по ссылке из письма подписчиком не считается и в сводку не идёт.
     const { data, error } = await supabaseAdmin
       .from('submissions')
       .select('created_at, email, source, event, source_url')
       .eq('form_key', 'newsletter')
+      .eq('status', 'confirmed')
       .gte('created_at', since)
       .order('created_at', { ascending: false });
     if (error) throw new Error(`supabase select: ${error.message}`);

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { Resend } from 'resend';
 import { supabaseAdmin } from '../../../lib/supabase';
 import {
@@ -10,6 +11,8 @@ import {
   renderRegistrationText,
   renderSpeakerHtml,
   renderSpeakerText,
+  renderConfirmHtml,
+  renderConfirmText,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   shouldNotifyImmediately,
@@ -105,6 +108,18 @@ export async function POST(req) {
 
     // служебные поля (hp/elapsed/send_report) в БД не пишем
     const { hp, elapsed_ms, send_report, ...record } = sub;
+
+    // Подписка на рассылку — double opt-in: пишем со status='pending' и
+    // одноразовым токеном в payload; подписчиком строка станет только после
+    // перехода по ссылке из письма (GET /api/forms/confirm). Разовые письма
+    // (отчёт/регистрация/спикер) подтверждения НЕ требуют — их шлём сразу.
+    let confirmToken = null;
+    if (sub.form_key === 'newsletter' && sub.email) {
+      confirmToken = randomUUID();
+      record.status = 'pending';
+      record.payload = { ...record.payload, confirm_token: confirmToken };
+    }
+
     const { data, error } = await supabaseAdmin
       .from('submissions')
       .insert(record)
@@ -186,6 +201,24 @@ export async function POST(req) {
           });
         } catch (reportErr) {
           console.error('[forms] report email failed', reportErr);
+        }
+      }
+
+      // Double opt-in: подписчику уходит письмо с ссылкой-подтверждением.
+      // Без перехода по ней рассылку не шлём (строка остаётся 'pending').
+      if (confirmToken) {
+        try {
+          const base = process.env.PUBLIC_BASE_URL || 'https://slswiss-tickets.vercel.app';
+          const confirmUrl = `${base}/api/forms/confirm?token=${encodeURIComponent(confirmToken)}`;
+          await resend().emails.send({
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            to: sub.email,
+            subject: 'Подтверди подписку · Frankenplatz',
+            html: renderConfirmHtml(sub, confirmUrl),
+            text: renderConfirmText(sub, confirmUrl),
+          });
+        } catch (confErr) {
+          console.error('[forms] confirm email failed', confErr);
         }
       }
     }

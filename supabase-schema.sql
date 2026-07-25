@@ -53,8 +53,11 @@ create table if not exists public.submissions (
   payload     jsonb not null default '{}'::jsonb,   -- все поля формы
   tests       jsonb,                         -- результаты психотестов (team, практики)
   profile_id  uuid references public.profiles(id) on delete set null, -- опц. связь с участником
+  -- воронка обычных заявок: new→in_progress→done (+spam/archived).
+  -- Подписка на рассылку (form_key='newsletter') использует свой double opt-in:
+  -- pending (письмо ушло, ждём подтверждения) → confirmed (перешёл по ссылке).
   status      text not null default 'new'
-                check (status in ('new','in_progress','done','spam','archived')),
+                check (status in ('new','in_progress','done','spam','archived','pending','confirmed')),
   -- согласие на обработку перс. данных (GDPR/revDSG); created_at = момент согласия
   consent     boolean not null default false
 );

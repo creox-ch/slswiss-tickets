@@ -5,8 +5,11 @@ import {
   normalizeSubmission,
   renderNotificationHtml,
   renderReportHtml,
+  renderReportText,
   renderRegistrationHtml,
+  renderRegistrationText,
   renderSpeakerHtml,
+  renderSpeakerText,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   shouldNotifyImmediately,
@@ -145,6 +148,7 @@ export async function POST(req) {
             to: sub.email,
             subject: 'Ты в списке ранней регистрации · Frankenplatz 2026',
             html: renderRegistrationHtml(sub),
+            text: renderRegistrationText(sub),
           });
         } catch (regErr) {
           console.error('[forms] registration email failed', regErr);
@@ -164,6 +168,7 @@ export async function POST(req) {
             ),
             subject: 'Анкета спикера получена · Frankenplatz 2026',
             html: renderSpeakerHtml(sub),
+            text: renderSpeakerText(sub),
           });
         } catch (spErr) {
           console.error('[forms] speaker email failed', spErr);
@@ -177,6 +182,7 @@ export async function POST(req) {
             to: sub.email,
             subject: `Твой расчёт · ${sub.role || sub.form_key || 'Frankenplatz'}`,
             html: renderReportHtml(sub),
+            text: renderReportText(sub),
           });
         } catch (reportErr) {
           console.error('[forms] report email failed', reportErr);

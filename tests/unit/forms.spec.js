@@ -4,8 +4,11 @@ import {
   normalizeEmail,
   renderNotificationHtml,
   renderReportHtml,
+  renderReportText,
   renderRegistrationHtml,
+  renderRegistrationText,
   renderSpeakerHtml,
+  renderSpeakerText,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -402,6 +405,68 @@ test.describe('отчёт отправителю (калькуляторы фо�
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<img onerror=x>');
     expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+test.describe('plain-text часть писем (анти-спам: text рядом с html)', () => {
+  const noHtml = (s) => {
+    // в тексте не должно быть html-тегов и «сырых» сущностей от escapeHtml
+    expect(s).not.toContain('<');
+    expect(s).not.toContain('>');
+    expect(s).not.toContain('&#39;');
+    expect(s).not.toContain('&lt;');
+  };
+
+  test('регистрация: содержит суть, поля payload и не содержит html', () => {
+    const text = renderRegistrationText({
+      name: 'Аня', form_key: 'registration',
+      payload: { Интересует: 'Оба дня', Мест: '2' },
+    });
+    expect(text).toContain('Аня, привет!');
+    expect(text).toContain('ещё не билет');
+    expect(text).toContain('Интересует: Оба дня');
+    expect(text).toContain('Мест: 2');
+    expect(text).toContain('frankenplatz.ch');
+    noHtml(text);
+  });
+
+  test('регистрация без имени и без payload не ломается', () => {
+    const text = renderRegistrationText({ form_key: 'registration', payload: {} });
+    expect(text).toContain('Привет!');
+    expect(text).toContain('ранней регистрации');
+    noHtml(text);
+  });
+
+  test('спикер: подтверждение, срок и ответы анкеты, без html', () => {
+    const text = renderSpeakerText({
+      name: 'Пётр',
+      payload: { Тема: 'Пенсия для поздних мигрантов', День: 'День 1' },
+    });
+    expect(text).toContain('Пётр, спасибо!');
+    expect(text).toContain('Анкета спикера получена');
+    expect(text).toContain('в течение недели');
+    expect(text).toContain('Тема: Пенсия для поздних мигрантов');
+    noHtml(text);
+  });
+
+  test('отчёт: результаты расчёта как есть (апостроф не экранируется) + ссылка', () => {
+    const text = renderReportText({
+      role: 'Пенсия в Швейцарии', form_key: 'calc-pension',
+      payload: { 'Пенсия всего, CHF/мес': "4'506", 'AHV (1-я опора)': "1'368" },
+    });
+    expect(text).toContain('Твой расчёт — Пенсия в Швейцарии');
+    // в plain-text апостроф остаётся собой, а не &#39; (как в html)
+    expect(text).toContain("Пенсия всего, CHF/мес: 4'506");
+    expect(text).toContain('не индивидуальная финансовая консультация');
+    expect(text).toContain('https://frankenplatz.ch');
+    noHtml(text);
+  });
+
+  test('пустые значения payload не попадают в текст', () => {
+    const text = renderReportText({ role: 'Расчёт', payload: { A: '1', B: '', C: null } });
+    expect(text).toContain('A: 1');
+    expect(text).not.toContain('B:');
+    expect(text).not.toContain('C:');
   });
 });
 

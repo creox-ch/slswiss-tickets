@@ -160,7 +160,7 @@ export async function POST(req) {
       if (sub.form_key === 'registration' && sub.email) {
         try {
           await resend().emails.send({
-            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
             to: sub.email,
             subject: 'Ты в списке ранней регистрации · Frankenplatz 2026',
             html: renderRegistrationHtml(sub),
@@ -175,7 +175,7 @@ export async function POST(req) {
       if (sub.form_key === 'speaker' && sub.email) {
         try {
           await resend().emails.send({
-            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
             to: sub.email,
             replyTo: notifyEmailFor(
               sub.source,
@@ -194,7 +194,7 @@ export async function POST(req) {
       if (sub.send_report && sub.email) {
         try {
           await resend().emails.send({
-            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
             to: sub.email,
             subject: `Твой расчёт · ${sub.role || sub.form_key || 'Frankenplatz'}`,
             html: renderReportHtml(sub),
@@ -219,7 +219,7 @@ export async function POST(req) {
             allowedOrigins()
           );
           await resend().emails.send({
-            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
             to: sub.email,
             subject: 'Подтверди подписку · Frankenplatz',
             html: renderConfirmHtml(sub, confirmUrl),

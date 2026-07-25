@@ -13,6 +13,9 @@ import {
   renderConfirmText,
   confirmPageHtml,
   confirmLink,
+  unsubscribeUrl,
+  unsubscribeHeaders,
+  unsubscribePageHtml,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -557,6 +560,48 @@ test.describe('confirmLink — домен ссылки подтверждени�
     expect(confirmLink('https://frankenplatz.ch/', undefined, T, ['https://chudina.me'])).toBe(
       'https://slswiss-tickets.vercel.app/api/forms/confirm?token=abc-123'
     );
+  });
+});
+
+test.describe('List-Unsubscribe (отписка)', () => {
+  const T = 'abc-123';
+  const API = 'https://slswiss-tickets.vercel.app';
+
+  test('unsubscribeUrl: домен подписки + путь отписки (та же анти-фишинг логика)', () => {
+    expect(unsubscribeUrl('https://frankenplatz.ch/', API, T)).toBe(
+      'https://frankenplatz.ch/newsletter/unsubscribe?token=abc-123'
+    );
+    // чужой домен → фолбэк на API
+    expect(unsubscribeUrl('https://evil.example/', API, T)).toBe(
+      'https://slswiss-tickets.vercel.app/api/forms/unsubscribe?token=abc-123'
+    );
+  });
+
+  test('unsubscribeHeaders: one-click (RFC 8058)', () => {
+    const h = unsubscribeHeaders('https://frankenplatz.ch/newsletter/unsubscribe?token=abc-123');
+    expect(h['List-Unsubscribe']).toBe(
+      '<https://frankenplatz.ch/newsletter/unsubscribe?token=abc-123>'
+    );
+    expect(h['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+  });
+
+  test('страница ask: форма постит с методом POST и относительным action', () => {
+    const html = unsubscribePageHtml('ask', { token: 'abc-123', site: 'https://frankenplatz.ch' });
+    expect(html).toContain('Отписаться от рассылки?');
+    expect(html).toContain('method="post"');
+    expect(html).toContain('action="?token=abc-123"');
+    expect(html).toContain('noindex');
+  });
+
+  test('страница done/invalid', () => {
+    expect(unsubscribePageHtml('done', { site: 'https://frankenplatz.ch' })).toContain('Ты отписан(а)');
+    expect(unsubscribePageHtml('invalid')).toContain('недействительна');
+    expect(unsubscribePageHtml('чтотонетак')).toContain('недействительна'); // fallback
+  });
+
+  test('токен в ask-странице экранируется', () => {
+    const html = unsubscribePageHtml('ask', { token: 'a"b', site: 'https://frankenplatz.ch' });
+    expect(html).not.toContain('action="?token=a"b"');
   });
 });
 

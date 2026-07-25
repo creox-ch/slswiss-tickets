@@ -14,6 +14,8 @@ import {
   renderConfirmHtml,
   renderConfirmText,
   confirmLink,
+  unsubscribeUrl,
+  unsubscribeHeaders,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   shouldNotifyImmediately,
@@ -218,12 +220,21 @@ export async function POST(req) {
             confirmToken,
             allowedOrigins()
           );
+          // List-Unsubscribe (one-click): кнопка «Отписаться» в почтовике +
+          // меньше жалоб на спам. Тот же токен, что и подтверждение.
+          const unsubUrl = unsubscribeUrl(
+            sub.source_url,
+            process.env.PUBLIC_BASE_URL,
+            confirmToken,
+            allowedOrigins()
+          );
           await resend().emails.send({
             from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
             to: sub.email,
             subject: 'Подтверди подписку · Frankenplatz',
             html: renderConfirmHtml(sub, confirmUrl),
             text: renderConfirmText(sub, confirmUrl),
+            headers: unsubscribeHeaders(unsubUrl),
           });
         } catch (confErr) {
           console.error('[forms] confirm email failed', confErr);

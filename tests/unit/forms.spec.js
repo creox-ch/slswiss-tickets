@@ -12,6 +12,7 @@ import {
   renderConfirmHtml,
   renderConfirmText,
   confirmPageHtml,
+  confirmLink,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -514,6 +515,48 @@ test.describe('double opt-in подписки (письмо + страница �
     expect(confirmPageHtml('invalid')).toContain('недействительна');
     // неизвестное состояние → безопасный fallback на invalid
     expect(confirmPageHtml('чтотонетак')).toContain('недействительна');
+  });
+});
+
+test.describe('confirmLink — домен ссылки подтверждения', () => {
+  const T = 'abc-123';
+  const API = 'https://slswiss-tickets.vercel.app';
+
+  test('ведёт на домен, с которого подписались (наш → rewrite-прокси)', () => {
+    expect(confirmLink('https://frankenplatz.ch/#reg', API, T)).toBe(
+      'https://frankenplatz.ch/newsletter/confirm?token=abc-123'
+    );
+    expect(confirmLink('https://www.frankenplatz.ch/', undefined, T)).toBe(
+      'https://www.frankenplatz.ch/newsletter/confirm?token=abc-123'
+    );
+  });
+
+  test('АНТИ-ФИШИНГ: чужой домен в source_url НЕ используется → фолбэк на API', () => {
+    expect(confirmLink('https://evil.example/x', API, T)).toBe(
+      'https://slswiss-tickets.vercel.app/api/forms/confirm?token=abc-123'
+    );
+  });
+
+  test('нет/кривой source_url → прямой URL API', () => {
+    expect(confirmLink(null, API, T)).toBe(
+      'https://slswiss-tickets.vercel.app/api/forms/confirm?token=abc-123'
+    );
+    expect(confirmLink('не url', undefined, T)).toBe(
+      'https://slswiss-tickets.vercel.app/api/forms/confirm?token=abc-123'
+    );
+  });
+
+  test('токен экранируется', () => {
+    expect(confirmLink('https://frankenplatz.ch/', undefined, 'a b&c')).toBe(
+      'https://frankenplatz.ch/newsletter/confirm?token=a%20b%26c'
+    );
+  });
+
+  test('переданный белый список ограничивает origin', () => {
+    // frankenplatz нет в переданном списке → фолбэк, хотя он в дефолтном
+    expect(confirmLink('https://frankenplatz.ch/', undefined, T, ['https://chudina.me'])).toBe(
+      'https://slswiss-tickets.vercel.app/api/forms/confirm?token=abc-123'
+    );
   });
 });
 

@@ -13,6 +13,7 @@ import {
   renderSpeakerText,
   renderConfirmHtml,
   renderConfirmText,
+  confirmLink,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   shouldNotifyImmediately,
@@ -208,8 +209,15 @@ export async function POST(req) {
       // Без перехода по ней рассылку не шлём (строка остаётся 'pending').
       if (confirmToken) {
         try {
-          const base = process.env.PUBLIC_BASE_URL || 'https://slswiss-tickets.vercel.app';
-          const confirmUrl = `${base}/api/forms/confirm?token=${encodeURIComponent(confirmToken)}`;
+          // Ссылку ведём на домен подписки (frankenplatz.ch), а не на *.vercel.app:
+          // бренд + совпадение с доменом отправителя = меньше спама. Прокси —
+          // rewrite /newsletter/confirm в vercel.json сайта.
+          const confirmUrl = confirmLink(
+            sub.source_url,
+            process.env.PUBLIC_BASE_URL,
+            confirmToken,
+            allowedOrigins()
+          );
           await resend().emails.send({
             from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <noreply@frankenplatz.ch>',
             to: sub.email,

@@ -179,11 +179,10 @@ export async function POST(req) {
           await resend().emails.send({
             from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
             to: sub.email,
-            replyTo: notifyEmailFor(
-              sub.source,
-              process.env.FORMS_NOTIFY_MAP,
-              process.env.FORMS_NOTIFY_EMAIL
-            ),
+            // Ответы спикера ведём в ящик форума info@ (его читает оргкоманда),
+            // с копией платформенному админу assistant@creox.ch. Оба адреса в
+            // Reply-To → при «Ответить» письмо уходит на оба.
+            replyTo: ['info@frankenplatz.ch', 'assistant@creox.ch'],
             subject: 'Анкета спикера получена · Frankenplatz 2026',
             html: renderSpeakerHtml(sub),
             text: renderSpeakerText(sub),

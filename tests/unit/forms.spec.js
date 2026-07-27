@@ -16,6 +16,7 @@ import {
   unsubscribeUrl,
   unsubscribeHeaders,
   unsubscribePageHtml,
+  withUtm,
   renderTestsHtml,
   renderDigestHtml,
   allowedOrigins,
@@ -429,6 +430,32 @@ test.describe('отчёт отправителю (калькуляторы фо�
     expect(html).toContain("24&#39;136");
     // название расчёта в градиентном заголовке
     expect(html).toContain('Семейный бюджет');
+    // UTM-метки на CTA (в href амперсанды экранированы как &amp;)
+    expect(html).toContain('utm_source=calc-report');
+    expect(html).toContain('utm_medium=email');
+    expect(html).toContain('utm_content=calc-budget');
+  });
+});
+
+test.describe('withUtm — метки кликов из писем', () => {
+  test('добавляет utm к чистому URL', () => {
+    expect(
+      withUtm('https://frankenplatz.ch', 'calc-report', 'frankenplatz-2026-10', 'calc-pension')
+    ).toBe(
+      'https://frankenplatz.ch?utm_source=calc-report&utm_medium=email&utm_campaign=frankenplatz-2026-10&utm_content=calc-pension'
+    );
+  });
+
+  test('к URL с query добавляет через &', () => {
+    expect(withUtm('https://frankenplatz.ch/calculators/?x=1', 'registration', 'ev', 'cta')).toBe(
+      'https://frankenplatz.ch/calculators/?x=1&utm_source=registration&utm_medium=email&utm_campaign=ev&utm_content=cta'
+    );
+  });
+
+  test('content опционален, campaign по умолчанию — событие форума', () => {
+    expect(withUtm('https://frankenplatz.ch', 'speaker')).toBe(
+      'https://frankenplatz.ch?utm_source=speaker&utm_medium=email&utm_campaign=frankenplatz-2026-10'
+    );
   });
 });
 

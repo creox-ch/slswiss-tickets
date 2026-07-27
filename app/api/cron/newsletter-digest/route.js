@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../../../../lib/supabase';
 import {
   renderDigestHtml,
   notifyEmailFor,
+  notifyFromFor,
   DIGEST_WINDOW_HOURS,
 } from '../../../../lib/forms';
 
@@ -79,7 +80,8 @@ export async function GET(req) {
       );
       try {
         await resend.emails.send({
-          from: process.env.TICKET_FROM_EMAIL || 'SoiLüDi <noreply@slswiss.ch>',
+          // «От кого» — по бренду источника (форум → Frankenplatz).
+          from: notifyFromFor(source, process.env.FORMS_REPORT_FROM, process.env.TICKET_FROM_EMAIL),
           to,
           subject: `Подписки за сутки · ${source} · ${list.length}`,
           html: renderDigestHtml(source, list, DIGEST_WINDOW_HOURS),

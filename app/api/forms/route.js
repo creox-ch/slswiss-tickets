@@ -18,6 +18,7 @@ import {
   unsubscribeHeaders,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
+  notifyFromFor,
   shouldNotifyImmediately,
   MIN_FILL_MS,
 } from '../../../lib/forms';
@@ -137,7 +138,13 @@ export async function POST(req) {
       if (shouldNotifyImmediately(sub)) {
         try {
           await resend().emails.send({
-            from: process.env.TICKET_FROM_EMAIL || 'SoiLüDi <noreply@slswiss.ch>',
+            // «От кого» — по бренду источника: заявка форума приходит от
+            // Frankenplatz, а не от SoiLüDi/slswiss.ch.
+            from: notifyFromFor(
+              sub.source,
+              process.env.FORMS_REPORT_FROM,
+              process.env.TICKET_FROM_EMAIL
+            ),
             // Адрес зависит от сайта-источника (FORMS_NOTIFY_MAP),
             // иначе заявки форума падали бы в ящик chudina и наоборот.
             to: notifyEmailFor(

@@ -21,6 +21,7 @@ import {
   renderDigestHtml,
   allowedOrigins,
   notifyEmailFor,
+  notifyFromFor,
   parseNotifyMap,
   shouldNotifyImmediately,
   DEFAULT_ORIGINS,
@@ -123,6 +124,22 @@ test.describe('маршрутизация уведомлений по сайту
     expect(shouldNotifyImmediately({ form_key: 'speaker' })).toBe(true);
     expect(shouldNotifyImmediately({ form_key: 'calc-pension' })).toBe(true);
     expect(shouldNotifyImmediately({})).toBe(true);
+  });
+
+  test('notifyFromFor: форум → Frankenplatz, прочие → общий дефолт', () => {
+    // всё с проекта форума отправляется с креденшелами Frankenplatz
+    expect(notifyFromFor('forum', undefined, 'SoiLüDi <noreply@slswiss.ch>')).toBe(
+      'Frankenplatz <info@frankenplatz.ch>'
+    );
+    expect(notifyFromFor('FORUM', undefined, undefined)).toBe('Frankenplatz <info@frankenplatz.ch>');
+    // env может переопределить отправителя форума
+    expect(notifyFromFor('forum', 'Frankenplatz <hello@frankenplatz.ch>', undefined)).toBe(
+      'Frankenplatz <hello@frankenplatz.ch>'
+    );
+    // остальные сайты — общий дефолт (или его env-переопределение)
+    expect(notifyFromFor('chudina', undefined, undefined)).toBe('SoiLüDi <noreply@slswiss.ch>');
+    expect(notifyFromFor('creox', undefined, 'X <x@y.ch>')).toBe('X <x@y.ch>');
+    expect(notifyFromFor(null, undefined, undefined)).toBe('SoiLüDi <noreply@slswiss.ch>');
   });
 });
 

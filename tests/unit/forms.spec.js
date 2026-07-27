@@ -413,6 +413,23 @@ test.describe('отчёт отправителю (калькуляторы фо�
     expect(html).not.toContain('<img onerror=x>');
     expect(html).toContain('&lt;script&gt;');
   });
+
+  test('премиум-шаблон дизайнера: единая обёртка, реальные данные (не заглушки)', () => {
+    const html = renderReportHtml({
+      role: 'Семейный бюджет', form_key: 'calc-budget',
+      payload: { 'Доход / мес': "42'900", 'Остаток / мес': "24'136" },
+    });
+    // обёртка дизайнера
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('linear-gradient(90deg,#B98BFF'); // градиент заголовка
+    expect(html).toContain('Забронировать место'); // CTA
+    expect(html).toContain('background:#0d0715'); // тёмная тема
+    // реальные данные из payload, а НЕ зашитые в макет примеры дизайнера
+    expect(html).toContain('Доход / мес');
+    expect(html).toContain("24&#39;136");
+    // название расчёта в градиентном заголовке
+    expect(html).toContain('Семейный бюджет');
+  });
 });
 
 test.describe('plain-text часть писем (анти-спам: text рядом с html)', () => {

@@ -105,12 +105,25 @@ export async function POST(req) {
         try {
           if (existing.event_slug === FORUM_EVENT_SLUG) {
             const p = existing.payload || {};
+            // Человеко-номер FP-2026-NNNN из счётчика. Идемпотентно (ретрай вебхука
+            // не «сжигает» новый номер). Ошибку глотаем — билет валиден и без номера.
+            let ticketNo = null;
+            try {
+              const { data: no } = await supabaseAdmin.rpc('assign_forum_ticket_no', {
+                p_reference_id: referenceId,
+              });
+              ticketNo = no;
+            } catch (noErr) {
+              console.error('[webhook] ticket_no assign failed (ticket still valid)', noErr);
+            }
             await sendForumTicketEmail({
               to: email,
               name,
               qrToken,
               description: p.description || existing.event_name,
               amountRappen: existing.amount,
+              ticketNo,
+              product: p.product,
             });
           } else {
             await sendTicketEmail({ to: email, name, eventName: existing.event_name, qrToken });

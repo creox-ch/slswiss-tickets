@@ -9,6 +9,10 @@ import {
   PRODUCT_KEYS,
   FORUM_EVENT_SLUG,
   LUNCH_RAPPEN,
+  formatTicketNo,
+  ticketDateTimeLabel,
+  icsDayParam,
+  buildEventIcs,
 } from '../../lib/forum-tickets';
 
 // Цены Иванны (обычная / Early Bird), CHF → рапены.
@@ -106,5 +110,57 @@ test.describe('каталог билетов форума — метаданны
     expect(CATEGORIES.standard.limit).toBe(225);
     expect(PRODUCT_KEYS).toEqual(['day1', 'day2', 'both']);
     expect(FORUM_EVENT_SLUG).toBe('frankenplatz-2026-10');
+  });
+});
+
+test.describe('билет форума — номер, дата, .ics', () => {
+  test('formatTicketNo: FP-2026-NNNN с ведущими нулями', () => {
+    expect(formatTicketNo(1)).toBe('FP-2026-0001');
+    expect(formatTicketNo(417)).toBe('FP-2026-0417');
+    expect(formatTicketNo(12345)).toBe('FP-2026-12345'); // не режем, если номеров >9999
+  });
+
+  test('formatTicketNo: нет номера → null (вызывающий даст запасной код)', () => {
+    expect(formatTicketNo(null)).toBeNull();
+    expect(formatTicketNo(undefined)).toBeNull();
+    expect(formatTicketNo(0)).toBeNull();
+    expect(formatTicketNo('abc')).toBeNull();
+  });
+
+  test('ticketDateTimeLabel: по продукту, дефолт — весь форум', () => {
+    expect(ticketDateTimeLabel('day1')).toContain('24 октября');
+    expect(ticketDateTimeLabel('day2')).toContain('25 октября');
+    expect(ticketDateTimeLabel('both')).toContain('24–25 октября');
+    expect(ticketDateTimeLabel(undefined)).toContain('24–25 октября'); // неизвестно → весь форум
+  });
+
+  test('icsDayParam: day1→1, day2→2, иначе both', () => {
+    expect(icsDayParam('day1')).toBe('1');
+    expect(icsDayParam('day2')).toBe('2');
+    expect(icsDayParam('both')).toBe('both');
+    expect(icsDayParam(undefined)).toBe('both');
+  });
+
+  test('buildEventIcs: валидный VCALENDAR, CRLF, время в UTC', () => {
+    const ics = buildEventIcs('1');
+    expect(ics.startsWith('BEGIN:VCALENDAR')).toBe(true);
+    expect(ics.trimEnd().endsWith('END:VCALENDAR')).toBe(true);
+    expect(ics).toContain('\r\n'); // RFC 5545 требует CRLF
+    expect(ics).toContain('DTSTART:20261024T073000Z'); // день 1, 09:30 CEST = 07:30Z
+    expect(ics).toContain('DTEND:20261024T160000Z');
+    expect((ics.match(/BEGIN:VEVENT/g) || []).length).toBe(1);
+  });
+
+  test('buildEventIcs: день 2 — с учётом конца летнего времени (CET +01:00)', () => {
+    const ics = buildEventIcs('2');
+    expect(ics).toContain('DTSTART:20261025T083000Z'); // 09:30 CET = 08:30Z
+    expect(ics).toContain('DTEND:20261025T170000Z'); // 18:00 CET = 17:00Z
+  });
+
+  test('buildEventIcs: both — два события', () => {
+    const ics = buildEventIcs('both');
+    expect((ics.match(/BEGIN:VEVENT/g) || []).length).toBe(2);
+    expect(ics).toContain('20261024T073000Z');
+    expect(ics).toContain('20261025T083000Z');
   });
 });

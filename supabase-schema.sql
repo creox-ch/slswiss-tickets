@@ -29,6 +29,37 @@ create index if not exists tickets_reference_idx on public.tickets (reference_id
 create index if not exists tickets_qr_idx on public.tickets (qr_token);
 create index if not exists tickets_event_slug_idx on public.tickets (event_slug);
 
+-- Человеко-номер билета форума: FP-2026-NNNN. Отдельный счётчик (не глобальный id),
+-- чтобы номера форума шли подряд без «дыр» от билетов стенда SoiLüDi. Присваивается
+-- при оплате (webhook), не на pending — брошенные корзины номер не жгут.
+create sequence if not exists public.forum_ticket_seq start 1;
+alter table public.tickets add column if not exists ticket_no bigint unique;
+
+-- Идемпотентно выдаёт номер: первый вызов берёт nextval, повторный (ретрай вебхука)
+-- возвращает уже присвоенный, НЕ сжигая новый.
+create or replace function public.assign_forum_ticket_no(p_reference_id text)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_no bigint;
+begin
+  update public.tickets
+     set ticket_no = nextval('public.forum_ticket_seq')
+   where reference_id = p_reference_id and ticket_no is null
+   returning ticket_no into v_no;
+  if v_no is null then
+    select ticket_no into v_no from public.tickets where reference_id = p_reference_id;
+  end if;
+  return v_no;
+end;
+$$;
+
+-- Функцию зовёт только сервер (service_role, обходит грант). Закрываем публичный
+-- REST-доступ (anon/authenticated), чтобы её нельзя было дёрнуть из браузера/curl.
+revoke execute on function public.assign_forum_ticket_no(text) from public, anon, authenticated;
+
 -- RLS: ВКЛючаем, но НИ одной policy для anon.
 -- Весь доступ идёт через service_role (server-side, API routes) — он обходит RLS.
 -- Так браузер не может читать/писать таблицу напрямую.

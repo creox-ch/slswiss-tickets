@@ -55,6 +55,11 @@ export async function GET(req) {
 
     const site = originOf(data.source_url);
 
+    // Уже отписался → НЕ воскрешаем подписку старой ссылкой подтверждения.
+    if (data.status === 'unsubscribed') {
+      return page(confirmPageHtml('unsubscribed', site));
+    }
+
     // Повторный клик по той же ссылке — не ошибка, подписка уже активна.
     if (data.status === 'confirmed') {
       return page(confirmPageHtml('already', site));

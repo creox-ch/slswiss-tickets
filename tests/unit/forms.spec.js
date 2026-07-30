@@ -577,6 +577,8 @@ test.describe('double opt-in подписки (письмо + страница �
 
     expect(confirmPageHtml('already')).toContain('Уже подтверждено');
     expect(confirmPageHtml('invalid')).toContain('недействительна');
+    // отписавшийся не «воскрешается» подтверждением — своя страница
+    expect(confirmPageHtml('unsubscribed')).toContain('Подписка отменена');
     // неизвестное состояние → безопасный fallback на invalid
     expect(confirmPageHtml('чтотонетак')).toContain('недействительна');
   });

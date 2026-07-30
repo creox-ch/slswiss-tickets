@@ -16,6 +16,10 @@ create table if not exists public.tickets (
                     check (status in ('pending','paid','checked_in','failed','refunded')),
   payrexx_tx_id   bigint,                          -- id транзакции Payrexx (из вебхука)
   qr_token        text unique,                     -- секрет внутри QR, по нему сканер находит билет
+  -- форумные билеты Frankenplatz: event_slug != null (иначе билет стенда SoiLüDi),
+  -- детали заказа (день/категория/ланч/EB, суммы) — в payload. См. lib/forum-tickets.
+  event_slug      text,
+  payload         jsonb not null default '{}'::jsonb,
   paid_at         timestamptz,
   checked_in_at   timestamptz,
   created_at      timestamptz not null default now()
@@ -23,6 +27,7 @@ create table if not exists public.tickets (
 
 create index if not exists tickets_reference_idx on public.tickets (reference_id);
 create index if not exists tickets_qr_idx on public.tickets (qr_token);
+create index if not exists tickets_event_slug_idx on public.tickets (event_slug);
 
 -- RLS: ВКЛючаем, но НИ одной policy для anon.
 -- Весь доступ идёт через service_role (server-side, API routes) — он обходит RLS.

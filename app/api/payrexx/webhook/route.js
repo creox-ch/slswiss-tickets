@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { getTransaction, verifyWebhookSignature, unflattenTransaction } from '../../../../lib/payrexx';
-import { sendTicketEmail } from '../../../../lib/ticket';
+import { sendTicketEmail, sendForumTicketEmail } from '../../../../lib/ticket';
+import { FORUM_EVENT_SLUG } from '../../../../lib/forum-tickets';
 
 export const runtime = 'nodejs';
 
@@ -64,7 +65,7 @@ export async function POST(req) {
       // С .single() сбой БД был бы неотличим от «билета нет» и событие терялось бы с 200.
       const { data: existing, error: selErr } = await supabaseAdmin
         .from('tickets')
-        .select('id, status, qr_token, buyer_email, buyer_name, event_name')
+        .select('id, status, qr_token, buyer_email, buyer_name, event_name, event_slug, payload, amount')
         .eq('reference_id', referenceId)
         .maybeSingle();
       if (selErr) throw new Error(`supabase select: ${selErr.message}`);
@@ -97,10 +98,23 @@ export async function POST(req) {
         .eq('reference_id', referenceId);
       if (updErr) throw new Error(`supabase update: ${updErr.message}`);
 
-      // email НЕ должен валить вебхук — ловим отдельно
+      // email НЕ должен валить вебхук — ловим отдельно.
+      // Форумный билет (event_slug) → брендированное письмо Frankenplatz с деталями заказа;
+      // остальное → билет стенда SoiLüDi.
       if (email) {
         try {
-          await sendTicketEmail({ to: email, name, eventName: existing.event_name, qrToken });
+          if (existing.event_slug === FORUM_EVENT_SLUG) {
+            const p = existing.payload || {};
+            await sendForumTicketEmail({
+              to: email,
+              name,
+              qrToken,
+              description: p.description || existing.event_name,
+              amountRappen: existing.amount,
+            });
+          } else {
+            await sendTicketEmail({ to: email, name, eventName: existing.event_name, qrToken });
+          }
         } catch (mailErr) {
           console.error('[webhook] email failed (ticket still valid)', mailErr);
         }

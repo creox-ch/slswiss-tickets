@@ -117,8 +117,12 @@ export async function POST(req) {
     // одноразовым токеном в payload; подписчиком строка станет только после
     // перехода по ссылке из письма (GET /api/forms/confirm). Разовые письма
     // (отчёт/регистрация/спикер) подтверждения НЕ требуют — их шлём сразу.
+    // Double opt-in — ТОЛЬКО у форума (у него настоящая рассылка, брендированная
+    // Frankenplatz, со ссылкой на frankenplatz.ch). Подписки с других сайтов
+    // (creox и т.п.) просто записываем как контакт, без письма-подтверждения:
+    // иначе бренд письма (Frankenplatz) ≠ домен подписки (creox.ch) → спам и путаница.
     let confirmToken = null;
-    if (sub.form_key === 'newsletter' && sub.email) {
+    if (sub.form_key === 'newsletter' && sub.email && sub.source === 'forum') {
       confirmToken = randomUUID();
       record.status = 'pending';
       record.payload = { ...record.payload, confirm_token: confirmToken };

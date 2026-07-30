@@ -15,7 +15,7 @@ import {
 const EXPECT = {
   day1: { vip: [27900, 20900], premium: [19900, 14900], standard: [14900, 11200] },
   day2: { vip: [36900, 27700], premium: [28900, 21700], standard: [21900, 16400] },
-  both: { standard: [31900, 23900], vip: [55900, 41900], premium: [42900, 32200] },
+  both: { standard: [31900, 23900], premium: [41900, 31400], vip: [54900, 41200] },
 };
 
 test.describe('каталог билетов форума — цены', () => {
@@ -74,12 +74,12 @@ test.describe('каталог билетов форума — валидация
     expect(() => priceOrder({ product: 'day1', category: 'gold' })).toThrow(/unknown category/);
   });
 
-  test('VIP/Premium на 2 дня — провизорные (заглушки, в продажу не открываем)', () => {
-    expect(isProvisional('both', 'vip')).toBe(true);
-    expect(isProvisional('both', 'premium')).toBe(true);
-    expect(isProvisional('both', 'standard')).toBe(false); // Standard-пакет подтверждён
-    expect(priceOrder({ product: 'both', category: 'vip' }).provisional).toBe(true);
-    expect(priceOrder({ product: 'day1', category: 'vip' }).provisional).toBe(false);
+  test('все пакеты «2 дня» открыты в продажу (провизорных нет)', () => {
+    expect(isProvisional('both', 'vip')).toBe(false);
+    expect(isProvisional('both', 'premium')).toBe(false);
+    expect(isProvisional('both', 'standard')).toBe(false);
+    expect(priceOrder({ product: 'both', category: 'vip' }).provisional).toBe(false);
+    expect(priceOrder({ product: 'both', category: 'premium' }).provisional).toBe(false);
   });
 
   test('isValidSelection: только реальные комбинации', () => {

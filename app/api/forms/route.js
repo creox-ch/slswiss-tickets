@@ -18,6 +18,7 @@ import {
   unsubscribeHeaders,
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
+  notifyCcFor,
   notifyFromFor,
   shouldNotifyImmediately,
   MIN_FILL_MS,
@@ -156,6 +157,8 @@ export async function POST(req) {
               process.env.FORMS_NOTIFY_MAP,
               process.env.FORMS_NOTIFY_EMAIL
             ),
+            // Копия платформенному ассистенту (assistant@creox.ch по умолчанию).
+            cc: notifyCcFor(process.env.FORMS_NOTIFY_CC),
             replyTo: sub.email || undefined,
             subject: `Заявка · ${sub.role || sub.form_key || sub.source}`,
             html: renderNotificationHtml(sub),

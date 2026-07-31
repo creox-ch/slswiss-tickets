@@ -21,11 +21,13 @@ import {
   renderDigestHtml,
   allowedOrigins,
   notifyEmailFor,
+  notifyCcFor,
   notifyFromFor,
   parseNotifyMap,
   shouldNotifyImmediately,
   DEFAULT_ORIGINS,
   DEFAULT_NOTIFY_EMAIL,
+  DEFAULT_NOTIFY_CC,
   MIN_FILL_MS,
 } from '../../lib/forms';
 
@@ -117,6 +119,12 @@ test.describe('маршрутизация уведомлений по сайту
   test('кривая карта не роняет уведомления', () => {
     expect(parseNotifyMap('мусор,=,a=,=b')).toEqual({});
     expect(parseNotifyMap('forum=a@b.ch,,мусор')).toEqual({ forum: 'a@b.ch' });
+  });
+
+  test('CC копия: дефолт assistant@creox.ch, env переопределяет, пусто → без копии', () => {
+    expect(notifyCcFor(undefined)).toBe(DEFAULT_NOTIFY_CC);
+    expect(notifyCcFor('boss@creox.ch')).toBe('boss@creox.ch');
+    expect(notifyCcFor('')).toBeUndefined();
   });
 
   test('подписки не шлём поштучно, остальное — шлём', () => {

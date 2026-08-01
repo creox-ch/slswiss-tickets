@@ -106,3 +106,9 @@ create index if not exists submissions_profile_idx on public.submissions (profil
 
 -- RLS on; доступ только через service_role (как tickets). anon-policy НЕ создаём.
 alter table public.submissions enable row level security;
+
+-- Defense-in-depth: снимаем дефолтные Supabase-гранты TRUNCATE у публичных ролей.
+-- RLS фильтрует SELECT/INSERT/UPDATE/DELETE, но НЕ TRUNCATE — а он у anon/
+-- authenticated стоял по умолчанию. Через PostgREST недостижим, но грант лишний.
+-- Инвариант проверяется в tests/pgtap/rls_access.sql.
+revoke truncate on public.tickets, public.submissions from anon, authenticated;

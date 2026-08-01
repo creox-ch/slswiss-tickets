@@ -24,7 +24,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(12);
 
 -- 1-2: RLS включён на обеих таблицах
 select ok(
@@ -71,6 +71,16 @@ select function_privs_are(
   'public', 'assign_forum_ticket_no', array['text'],
   'authenticated', array[]::text[],
   'assign_forum_ticket_no: нет EXECUTE у authenticated');
+
+-- 11-12: TRUNCATE снят у публичных ролей (RLS его НЕ фильтрует; см. supabase-schema.sql)
+select ok(
+  not has_table_privilege('anon', 'public.tickets', 'TRUNCATE')
+  and not has_table_privilege('anon', 'public.submissions', 'TRUNCATE'),
+  'anon: нет TRUNCATE на tickets/submissions');
+select ok(
+  not has_table_privilege('authenticated', 'public.tickets', 'TRUNCATE')
+  and not has_table_privilege('authenticated', 'public.submissions', 'TRUNCATE'),
+  'authenticated: нет TRUNCATE на tickets/submissions');
 
 select * from finish();
 

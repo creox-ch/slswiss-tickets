@@ -5,15 +5,17 @@
 только через `service_role` (server-side, API-роуты). Ловят регрессию, если
 кто-то случайно откроет таблицу или функцию для `anon`/`authenticated`.
 
-## Что покрыто (`rls_access.sql`, 10 проверок)
+## Что покрыто (`rls_access.sql`, 12 проверок)
 
 - RLS включён на `tickets` и `submissions`;
 - у обеих таблиц **0** RLS-policy (deny-all для anon/authenticated);
 - поведенчески от лица `anon`: чтение обеих таблиц пусто, INSERT отбивается
   RLS (SQLSTATE `42501`);
-- функция `assign_forum_ticket_no` не имеет `EXECUTE` у `anon` и `authenticated`.
+- функция `assign_forum_ticket_no` не имеет `EXECUTE` у `anon` и `authenticated`;
+- у `anon`/`authenticated` снят `TRUNCATE` на обеих таблицах (RLS его не
+  фильтрует — см. ниже).
 
-Проверено вживую 2026-08-01: 10 passed, 0 failed (прогон в транзакции с
+Проверено вживую 2026-08-01: 12 passed, 0 failed (прогон в транзакции с
 `ROLLBACK`, боевые данные не тронуты).
 
 ## Как запускать
@@ -53,18 +55,15 @@ Postgres в CI и залить только этот файл — не выйд�
 Решение отложено: суть (репроизводимые тесты RLS) уже есть, автоматизация —
 отдельный шаг.
 
-## Открытый вопрос — гранты TRUNCATE
+## Гранты TRUNCATE — сделано
 
-У `anon`/`authenticated` остаются дефолтные Supabase-гранты на таблицы, включая
+По умолчанию Supabase давал `anon`/`authenticated` все гранты на таблицы, включая
 `TRUNCATE`. Для `SELECT/INSERT/UPDATE/DELETE` это неопасно — их режет RLS. Но
-`TRUNCATE` **RLS не фильтрует**. Практически он недостижим через PostgREST (API
-не отдаёт TRUNCATE), поэтому риск низкий, но грант шире необходимого.
-
-Опциональное усиление (defense-in-depth) — снять лишние гранты и добавить
-2 теста, что их нет:
+`TRUNCATE` **RLS не фильтрует** (через PostgREST недостижим, риск низкий, но грант
+лишний). 2026-08-01 снято на боевой БД и зафиксировано в `supabase-schema.sql`:
 
 ```sql
 revoke truncate on public.tickets, public.submissions from anon, authenticated;
 ```
 
-Не применяли: это изменение прав на боевой БД, требует явного согласия владельца.
+Инвариант проверяют тесты 11-12 в `rls_access.sql`.

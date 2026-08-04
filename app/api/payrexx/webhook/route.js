@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { getTransaction, verifyWebhookSignature, unflattenTransaction } from '../../../../lib/payrexx';
-import { sendTicketEmail, sendForumTicketEmail } from '../../../../lib/ticket';
+import { sendTicketEmail, sendForumTicketEmail, sendMarketConfirmationEmail } from '../../../../lib/ticket';
 import { FORUM_EVENT_SLUG } from '../../../../lib/forum-tickets';
+import { MARKET_EVENT_SLUG } from '../../../../lib/market-packages';
 
 export const runtime = 'nodejs';
 
@@ -124,6 +125,15 @@ export async function POST(req) {
               amountRappen: existing.amount,
               ticketNo,
               product: p.product,
+            });
+          } else if (existing.event_slug === MARKET_EVENT_SLUG) {
+            // Пакет бренд-маркета: подтверждение оплаты (без QR — это не билет на вход).
+            const p = existing.payload || {};
+            await sendMarketConfirmationEmail({
+              to: email,
+              name,
+              description: p.description || 'Пакет маркета',
+              amountRappen: existing.amount,
             });
           } else {
             await sendTicketEmail({ to: email, name, eventName: existing.event_name, qrToken });

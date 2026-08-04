@@ -11,6 +11,8 @@ import {
   renderRegistrationText,
   renderSpeakerHtml,
   renderSpeakerText,
+  renderOkaziyaHtml,
+  renderOkaziyaText,
   renderConfirmHtml,
   renderConfirmText,
   confirmLink,
@@ -203,6 +205,30 @@ export async function POST(req) {
           });
         } catch (spErr) {
           console.error('[forms] speaker email failed', spErr);
+        }
+      }
+
+      // Автоответ отправителю с доски «Оказия» (объявление / заявка) — человек
+      // должен получить подтверждение, а не только надпись на экране. Ответы
+      // ведём в ящик форума info@ (Reply-To), доска пока в ручном режиме.
+      if (
+        (sub.form_key === 'okaziya-request' || sub.form_key === 'okaziya-listing') &&
+        sub.email
+      ) {
+        try {
+          await resend().emails.send({
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
+            to: sub.email,
+            replyTo: 'info@frankenplatz.ch',
+            subject:
+              sub.form_key === 'okaziya-listing'
+                ? 'Объявление получено · Оказия · Frankenplatz'
+                : 'Заявка получена · Оказия · Frankenplatz',
+            html: renderOkaziyaHtml(sub),
+            text: renderOkaziyaText(sub),
+          });
+        } catch (okzErr) {
+          console.error('[forms] okaziya email failed', okzErr);
         }
       }
 

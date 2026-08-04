@@ -9,6 +9,8 @@ import {
   renderRegistrationText,
   renderSpeakerHtml,
   renderSpeakerText,
+  renderOkaziyaHtml,
+  renderOkaziyaText,
   renderConfirmHtml,
   renderConfirmText,
   confirmPageHtml,
@@ -206,6 +208,60 @@ test.describe('письмо спикеру', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<img onerror=x>');
     expect(html).toContain('&lt;script&gt;');
+  });
+});
+
+test.describe('письмо «Оказии» (доска попутных передач)', () => {
+  test('заявка: подтверждает получение и показывает поля', () => {
+    const html = renderOkaziyaHtml({
+      form_key: 'okaziya-request',
+      name: 'Марина',
+      email: 'm@b.ch',
+      payload: { 'Тип посылки': '✉️ Конверт', 'Что внутри': 'Документы для нотариуса' },
+    });
+    expect(html).toContain('Марина');
+    expect(html).toContain('Заявка получена');
+    expect(html).toContain('Документы для нотариуса');
+  });
+
+  test('объявление: другой заголовок и текст', () => {
+    const html = renderOkaziyaHtml({
+      form_key: 'okaziya-listing',
+      name: 'Ксения',
+      email: 'k@b.ch',
+      payload: { Направление: 'Москва → Baden' },
+    });
+    expect(html).toContain('Объявление получено');
+    expect(html).toContain('ручном режиме');
+    expect(html).toContain('Москва → Baden');
+  });
+
+  test('без имени и без payload не ломается', () => {
+    const html = renderOkaziyaHtml({ form_key: 'okaziya-request', email: 'm@b.ch' });
+    expect(html).toContain('Спасибо!');
+    expect(html).toContain('Заявка получена');
+  });
+
+  test('экранирует пользовательский ввод', () => {
+    const html = renderOkaziyaHtml({
+      form_key: 'okaziya-request',
+      name: '<script>alert(1)</script>',
+      payload: { '<img onerror=x>': '<b>bad</b>' },
+    });
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<img onerror=x>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  test('plain-text версия несёт заголовок и поля', () => {
+    const text = renderOkaziyaText({
+      form_key: 'okaziya-listing',
+      name: 'Ксения',
+      payload: { Направление: 'Москва → Baden' },
+    });
+    expect(text).toContain('Объявление получено');
+    expect(text).toContain('Направление: Москва → Baden');
+    expect(text).not.toContain('<');
   });
 });
 

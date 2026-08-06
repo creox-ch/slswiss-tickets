@@ -516,6 +516,21 @@ test.describe('отчёт отправителю (калькуляторы фо�
     expect(html).toContain('utm_medium=email');
     expect(html).toContain('utm_content=calc-budget');
   });
+
+  test('город форума в шапке письма — Baden, а не Zürich', () => {
+    // форум проходит в Бадене; в шапке обёртки был Zürich (правка 2026-08-06).
+    // Проверяем на всех письмах, собранных через emailShell.
+    const emails = [
+      renderReportHtml({ role: 'Пенсия', form_key: 'calc-pension', payload: { a: '1' } }),
+      renderRegistrationHtml({ name: 'Аня', email: 'a@b.ch' }),
+      renderSpeakerHtml({ name: 'Аня', email: 'a@b.ch' }),
+      renderConfirmHtml({ email: 'a@b.ch' }, 'https://frankenplatz.ch/newsletter/confirm?token=x'),
+    ];
+    for (const html of emails) {
+      expect(html).toContain('24–25 октября · Baden');
+      expect(html).not.toContain('Zürich');
+    }
+  });
 });
 
 test.describe('withUtm — метки кликов из писем', () => {

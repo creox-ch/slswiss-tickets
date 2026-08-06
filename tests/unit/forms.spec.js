@@ -3,6 +3,7 @@ import {
   normalizeSubmission,
   normalizeEmail,
   renderNotificationHtml,
+  renderNotificationText,
   renderReportHtml,
   renderReportText,
   renderRegistrationHtml,
@@ -805,6 +806,50 @@ test.describe('renderNotificationHtml', () => {
     expect(html).toContain('React');
     expect(html).toContain('Результаты тестов');
     expect(html).toContain('PaeI');
+  });
+
+  test('заявка форума — в премиум-обёртке, прочие сайты — в нейтральной', () => {
+    const base = {
+      form_key: 'calc-rent-vs-buy',
+      role: 'Аренда или ипотека',
+      name: 'Ксения',
+      email: 'a@b.ch',
+      payload: { 'Проценты банку': "11'200 CHF/год" },
+    };
+    const forum = renderNotificationHtml({ ...base, source: 'forum' });
+    expect(forum).toContain('<!doctype html>');
+    expect(forum).toContain('background:#0d0715'); // тёмная обёртка дизайнера
+    expect(forum).toContain('24–25 октября · Baden');
+    expect(forum).toContain('Аренда или ипотека');
+    expect(forum).toContain('a@b.ch');
+    expect(forum).toContain('Ксения');
+    expect(forum).toContain("11&#39;200 CHF/год");
+
+    const other = renderNotificationHtml({ ...base, source: 'chudina' });
+    expect(other).not.toContain('<!doctype html>');
+    expect(other).toContain('Новая заявка · Аренда или ипотека');
+    expect(other).toContain('a@b.ch');
+  });
+
+  test('plain-text часть: каждое поле с новой строки, подписи не слипаются', () => {
+    const text = renderNotificationText({
+      source: 'forum',
+      form_key: 'calc-rent-vs-buy',
+      role: 'Аренда или ипотека',
+      email: 'a@b.ch',
+      source_url: 'https://frankenplatz.ch/calculators/rent-vs-buy',
+      payload: { 'Проценты банку': "11'200 CHF/год", Амортизация: "6'067 CHF/год" },
+    });
+    expect(text).toContain('НОВАЯ ЗАЯВКА · АРЕНДА ИЛИ ИПОТЕКА');
+    expect(text).toContain('Источник: forum / calc-rent-vs-buy');
+    expect(text).toContain('E-mail: a@b.ch');
+    expect(text).toContain("Проценты банку: 11'200 CHF/год");
+    expect(text).toContain("Амортизация: 6'067 CHF/год");
+    // именно то, что ломалось в авто-тексте Resend: значение вплотную к подписи
+    expect(text).not.toContain("Проценты банку11'200");
+    expect(text).not.toContain('E-maila@b.ch');
+    // пустые поля не попадают в текст
+    expect(text).not.toContain('Telegram:');
   });
 });
 

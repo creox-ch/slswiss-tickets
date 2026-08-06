@@ -5,6 +5,7 @@ import { supabaseAdmin } from '../../../lib/supabase';
 import {
   normalizeSubmission,
   renderNotificationHtml,
+  renderNotificationText,
   renderReportHtml,
   renderReportText,
   renderRegistrationHtml,
@@ -164,6 +165,9 @@ export async function POST(req) {
             replyTo: sub.email || undefined,
             subject: `Заявка · ${sub.role || sub.form_key || sub.source}`,
             html: renderNotificationHtml(sub),
+            // без text-части Resend генерит её из HTML и слепляет подписи
+            // со значениями («Emailanna@example.ch Проценты банку11'200»)
+            text: renderNotificationText(sub),
           });
         } catch (mailErr) {
           console.error('[forms] notify email failed', mailErr);

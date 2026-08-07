@@ -92,3 +92,27 @@ test.describe('глоссарий в письме-отчёте', () => {
     expect(html).not.toMatch(/<script/i);
   });
 });
+
+test.describe('ссылки и подписка в письме-отчёте', () => {
+  test('ссылка на все калькуляторы есть в обеих частях письма', () => {
+    expect(renderReportHtml(pension)).toContain('/calculators?utm_source=calc-report');
+    expect(renderReportText(pension)).toContain('Все калькуляторы: https://frankenplatz.ch/calculators');
+  });
+
+  test('не отметил галочку → в письме предложение подписаться', () => {
+    const html = renderReportHtml(pension);
+    expect(html).toContain('Программа и спикеры — раньше всех');
+    expect(html).toContain('#subscribe');
+    // честно говорим, что это отдельная история, а не условие получения отчёта
+    expect(html).toContain('Это отдельная подписка');
+    expect(renderReportText(pension)).toContain('ПРОГРАММА И СПИКЕРЫ — РАНЬШЕ ВСЕХ');
+  });
+
+  test('отметил галочку → второй раз не зовём', () => {
+    const opted = { ...pension, newsletter_optin: true };
+    expect(renderReportHtml(opted)).not.toContain('Программа и спикеры — раньше всех');
+    expect(renderReportText(opted)).not.toContain('ПРОГРАММА И СПИКЕРЫ');
+    // ссылка на калькуляторы остаётся — она не про продажу
+    expect(renderReportHtml(opted)).toContain('/calculators?utm_source=calc-report');
+  });
+});

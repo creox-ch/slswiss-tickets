@@ -22,6 +22,7 @@ import {
   allowedOrigins as resolveOrigins,
   notifyEmailFor,
   notifyCcFor,
+  parseAttribution,
   notifyFromFor,
   shouldNotifyImmediately,
   MIN_FILL_MS,
@@ -116,6 +117,12 @@ export async function POST(req) {
 
     // служебные поля (hp/elapsed/send_report) в БД не пишем
     const { hp, elapsed_ms, send_report, ...record } = sub;
+
+    // Откуда пришёл человек: utm-метки и страница входа — из адреса, который
+    // форма и так прислала. Отдельной колонкой, не в payload: payload целиком
+    // уходит в письмо заявителю, метки кампаний ему там не нужны.
+    const attrib = parseAttribution(sub.source_url);
+    if (attrib) record.attrib = attrib;
 
     // Подписка на рассылку — double opt-in: пишем со status='pending' и
     // одноразовым токеном в payload; подписчиком строка станет только после

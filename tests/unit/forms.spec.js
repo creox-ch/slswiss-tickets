@@ -27,6 +27,7 @@ import {
   notifyCcFor,
   notifyFromFor,
   parseNotifyMap,
+  parseAttribution,
   shouldNotifyImmediately,
   DEFAULT_ORIGINS,
   DEFAULT_NOTIFY_EMAIL,
@@ -117,6 +118,35 @@ test.describe('маршрутизация уведомлений по сайту
     expect(notifyEmailFor('creox', MAP, '')).toBe(DEFAULT_NOTIFY_EMAIL);
     expect(notifyEmailFor('forum', '', 'fallback@x.ch')).toBe('fallback@x.ch');
     expect(notifyEmailFor(null, null, null)).toBe(DEFAULT_NOTIFY_EMAIL);
+  });
+
+  test('атрибуция: utm-метки и страница входа из адреса формы', () => {
+    const a = parseAttribution(
+      'https://frankenplatz.ch/calculators/pension?utm_source=instagram&utm_medium=social&utm_campaign=okt26&utm_content=story-3'
+    );
+    expect(a).toEqual({
+      utm_source: 'instagram',
+      utm_medium: 'social',
+      utm_campaign: 'okt26',
+      utm_content: 'story-3',
+      landing: '/calculators/pension',
+    });
+  });
+
+  test('атрибуция: без меток остаётся страница, с корня — ничего', () => {
+    expect(parseAttribution('https://frankenplatz.ch/calculators/taxes')).toEqual({
+      landing: '/calculators/taxes',
+    });
+    expect(parseAttribution('https://frankenplatz.ch/')).toBeNull();
+  });
+
+  test('атрибуция: чужие параметры не тащим, кривой адрес не роняет заявку', () => {
+    // в query бывают посторонние идентификаторы — в базе лида им не место
+    const a = parseAttribution('https://frankenplatz.ch/x?fbclid=123&gclid=456&utm_source=ads');
+    expect(a).toEqual({ utm_source: 'ads', landing: '/x' });
+    expect(parseAttribution('не-адрес')).toBeNull();
+    expect(parseAttribution('')).toBeNull();
+    expect(parseAttribution(null)).toBeNull();
   });
 
   test('кривая карта не роняет уведомления', () => {

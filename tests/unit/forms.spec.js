@@ -120,6 +120,15 @@ test.describe('маршрутизация уведомлений по сайту
     expect(notifyEmailFor(null, null, null)).toBe(DEFAULT_NOTIFY_EMAIL);
   });
 
+  test('согласие на рассылку — отдельный флаг, по умолчанию выключен', () => {
+    const base = { source: 'forum', email: 'a@b.ch', consent: true };
+    expect(normalizeSubmission(base).newsletter_optin).toBe(false);
+    expect(normalizeSubmission({ ...base, newsletter_optin: true }).newsletter_optin).toBe(true);
+    expect(normalizeSubmission({ ...base, newsletter_optin: 'true' }).newsletter_optin).toBe(true);
+    // согласие на обработку данных ≠ согласие на рассылку
+    expect(normalizeSubmission({ ...base, consent: true }).newsletter_optin).toBe(false);
+  });
+
   test('атрибуция: utm-метки и страница входа из адреса формы', () => {
     const a = parseAttribution(
       'https://frankenplatz.ch/calculators/pension?utm_source=instagram&utm_medium=social&utm_campaign=okt26&utm_content=story-3'

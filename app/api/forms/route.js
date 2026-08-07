@@ -115,8 +115,8 @@ export async function POST(req) {
       );
     }
 
-    // служебные поля (hp/elapsed/send_report) в БД не пишем
-    const { hp, elapsed_ms, send_report, ...record } = sub;
+    // служебные поля (hp/elapsed/send_report/newsletter_optin) в БД не пишем
+    const { hp, elapsed_ms, send_report, newsletter_optin, ...record } = sub;
 
     // Откуда пришёл человек: utm-метки и страница входа — из адреса, который
     // форма и так прислала. Отдельной колонкой, не в payload: payload целиком
@@ -290,6 +290,70 @@ export async function POST(req) {
           });
         } catch (confErr) {
           console.error('[forms] confirm email failed', confErr);
+        }
+      }
+
+      /* Отдельное согласие на рассылку из калькулятора (галочка в форме).
+         Заводим ВТОРУЮ строку с form_key='newsletter' — так подписка живёт по
+         общим правилам: свой double opt-in, свой статус, своя отписка. Держать
+         согласие флагом внутри строки-лида нельзя: отписка и сводка ищут
+         именно строки newsletter.
+         Ошибка здесь не валит заявку — расчёт человек уже получил. */
+      if (newsletter_optin && sub.email && sub.source === 'forum' && sub.form_key !== 'newsletter') {
+        try {
+          // Дедуп: повторное согласие не плодит строки и вторые письма.
+          const { data: existing } = await supabaseAdmin
+            .from('submissions')
+            .select('id,status')
+            .eq('form_key', 'newsletter')
+            .eq('email', sub.email)
+            .in('status', ['pending', 'confirmed'])
+            .limit(1);
+
+          if (existing && existing.length) {
+            console.log('[forms] newsletter optin: уже есть подписка, пропускаем');
+          } else {
+            const token = randomUUID();
+            const subRow = {
+              source: sub.source,
+              event: sub.event,
+              form_key: 'newsletter',
+              kind: 'lead',
+              role: 'Подписка из калькулятора',
+              source_url: sub.source_url,
+              email: sub.email,
+              name: sub.name,
+              consent: true,
+              status: 'pending',
+              payload: { confirm_token: token, 'Откуда подписка': sub.form_key || 'калькулятор' },
+              ...(attrib ? { attrib } : {}),
+            };
+            const { error: subErr } = await supabaseAdmin.from('submissions').insert(subRow);
+            if (subErr) throw new Error(`supabase insert(newsletter): ${subErr.message}`);
+
+            const confirmUrl = confirmLink(
+              sub.source_url,
+              process.env.PUBLIC_BASE_URL,
+              token,
+              allowedOrigins()
+            );
+            const unsubUrl = unsubscribeUrl(
+              sub.source_url,
+              process.env.PUBLIC_BASE_URL,
+              token,
+              allowedOrigins()
+            );
+            await resend().emails.send({
+              from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
+              to: sub.email,
+              subject: 'Подтверди подписку · Frankenplatz',
+              html: renderConfirmHtml(subRow, confirmUrl),
+              text: renderConfirmText(subRow, confirmUrl),
+              headers: unsubscribeHeaders(unsubUrl),
+            });
+          }
+        } catch (optinErr) {
+          console.error('[forms] newsletter optin failed', optinErr);
         }
       }
     }

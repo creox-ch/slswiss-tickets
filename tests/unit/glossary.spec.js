@@ -102,7 +102,11 @@ test.describe('ссылки и подписка в письме-отчёте', (
   test('не отметил галочку → в письме предложение подписаться', () => {
     const html = renderReportHtml(pension);
     expect(html).toContain('Программа и спикеры — раньше всех');
-    expect(html).toContain('#subscribe');
+    // якорь ПОСЛЕ параметров: в «/#subscribe?utm=…» метки попадают во фрагмент,
+    // до аналитики не доходят, а браузер ищет id «subscribe?utm_source=…»
+    expect(html).toMatch(/frankenplatz\.ch\/\?utm_source=calc-report[^"]*#subscribe/);
+    expect(html).not.toContain('/#subscribe?');
+    expect(renderReportText(pension)).toMatch(/\?utm_source=calc-report[^\s]*#subscribe/);
     // честно говорим, что это отдельная история, а не условие получения отчёта
     expect(html).toContain('Это отдельная подписка');
     expect(renderReportText(pension)).toContain('ПРОГРАММА И СПИКЕРЫ — РАНЬШЕ ВСЕХ');

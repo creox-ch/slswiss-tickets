@@ -160,8 +160,10 @@ export async function POST(req) {
               process.env.FORMS_NOTIFY_MAP,
               process.env.FORMS_NOTIFY_EMAIL
             ),
-            // Копия платформенному ассистенту (assistant@creox.ch по умолчанию).
-            cc: notifyCcFor(process.env.FORMS_NOTIFY_CC),
+            // СКРЫТАЯ копия платформенному ассистенту (assistant@creox.ch по
+            // умолчанию). Именно bcc: Reply-To ведёт на заявителя, и видимый cc
+            // при «ответить всем» показал бы ему служебный адрес.
+            bcc: notifyCcFor(process.env.FORMS_NOTIFY_BCC ?? process.env.FORMS_NOTIFY_CC),
             replyTo: sub.email || undefined,
             subject: `Заявка · ${sub.role || sub.form_key || sub.source}`,
             html: renderNotificationHtml(sub),

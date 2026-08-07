@@ -124,10 +124,22 @@ test.describe('маршрутизация уведомлений по сайту
     expect(parseNotifyMap('forum=a@b.ch,,мусор')).toEqual({ forum: 'a@b.ch' });
   });
 
-  test('CC копия: дефолт assistant@creox.ch, env переопределяет, пусто → без копии', () => {
+  test('скрытая копия (BCC): дефолт assistant@creox.ch, env переопределяет, пусто → без копии', () => {
     expect(notifyCcFor(undefined)).toBe(DEFAULT_NOTIFY_CC);
     expect(notifyCcFor('boss@creox.ch')).toBe('boss@creox.ch');
     expect(notifyCcFor('')).toBeUndefined();
+  });
+
+  // Решение Иванны 2026-08-07: заявки форума читает команда форума,
+  // всё остальное — общий ящик платформы. Копия ассистенту — скрытая.
+  test('маршрут уведомлений: форум → info@frankenplatz.ch, прочие сайты → main@creox.ch', () => {
+    const map = 'forum=info@frankenplatz.ch';
+    expect(notifyEmailFor('forum', map)).toBe('info@frankenplatz.ch');
+    expect(notifyEmailFor('chudina', map)).toBe('main@creox.ch');
+    expect(notifyEmailFor('creox', map)).toBe('main@creox.ch');
+    expect(notifyEmailFor('atlasintegra', map)).toBe('main@creox.ch');
+    expect(notifyEmailFor('chudina', map)).toBe(DEFAULT_NOTIFY_EMAIL);
+    expect(notifyCcFor(undefined)).toBe('assistant@creox.ch');
   });
 
   test('подписки не шлём поштучно, остальное — шлём', () => {

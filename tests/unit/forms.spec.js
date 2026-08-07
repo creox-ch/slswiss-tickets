@@ -737,7 +737,7 @@ test.describe('List-Unsubscribe (отписка)', () => {
   });
 
   test('страница done/invalid', () => {
-    expect(unsubscribePageHtml('done', { site: 'https://frankenplatz.ch' })).toContain('Ты отписан(а)');
+    expect(unsubscribePageHtml('done', { site: 'https://frankenplatz.ch' })).toContain('Подписка отменена');
     expect(unsubscribePageHtml('invalid')).toContain('недействительна');
     expect(unsubscribePageHtml('чтотонетак')).toContain('недействительна'); // fallback
   });
@@ -984,5 +984,40 @@ test.describe('заявка в правление Atlas Integra', () => {
     expect(html).toContain('Правление (Vorstand)');
     expect(html).toContain('Чем можешь быть полезен');
     expect(html).toContain('Опыт HR');
+  });
+});
+
+test.describe('гендерно-нейтральный язык писем', () => {
+  // Регламент калькуляторов, раздел 7: конструкции вида «получил(а)» запрещены —
+  // фраза должна одинаково читаться от лица мужчины и женщины.
+  const GENDERED = /\((?:а|на|ая|ла)\)/;
+
+  test('ни в одном письме нет скобочных окончаний', () => {
+    const sub = {
+      source: 'forum',
+      form_key: 'calc-pension',
+      role: 'Пенсия',
+      name: 'Саша',
+      email: 'a@b.ch',
+      payload: { 'Пенсия всего': "4'506" },
+    };
+    const url = 'https://frankenplatz.ch/newsletter/confirm?token=x';
+    const rendered = [
+      renderReportHtml(sub),
+      renderReportText(sub),
+      renderRegistrationHtml(sub),
+      renderRegistrationText(sub),
+      renderSpeakerHtml(sub),
+      renderSpeakerText(sub),
+      renderOkaziyaHtml({ ...sub, form_key: 'okaziya-request' }),
+      renderOkaziyaText({ ...sub, form_key: 'okaziya-request' }),
+      renderConfirmHtml(sub, url),
+      renderConfirmText(sub, url),
+      renderNotificationHtml(sub),
+      renderNotificationText(sub),
+      unsubscribePageHtml('done', { site: 'https://frankenplatz.ch' }),
+      confirmPageHtml('confirmed'),
+    ];
+    for (const out of rendered) expect(out).not.toMatch(GENDERED);
   });
 });

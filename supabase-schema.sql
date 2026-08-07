@@ -87,6 +87,10 @@ create table if not exists public.submissions (
   telegram    text,
   phone       text,
   payload     jsonb not null default '{}'::jsonb,   -- все поля формы
+  -- откуда пришёл человек: utm_* + landing. Разбирает сервер из source_url.
+  -- Отдельной колонкой, а не в payload: payload целиком уходит в письмо
+  -- человеку, метки кампаний ему показывать незачем.
+  attrib      jsonb,
   tests       jsonb,                         -- результаты психотестов (team, практики)
   profile_id  uuid references public.profiles(id) on delete set null, -- опц. связь с участником
   -- воронка обычных заявок: new→in_progress→done (+spam/archived).

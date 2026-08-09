@@ -1,6 +1,8 @@
 # CLAUDE.md — гайд для AI-агента (репо slswiss-tickets)
 
 > **Сначала прочитай [`STATE.md`](STATE.md)** — там актуальное состояние, текущий блокер и факты, сверенные с кодом. Затем ТЗ — [`docs/TZ-tickets-subscription.md`](docs/TZ-tickets-subscription.md).
+>
+> **Процессы платформы (не состояние этого репо) — в handbook:** `creox-ch/handbook` (приватный). Там соглашения по сайтам, передача дизайна, формы и база аудитории, почта, платежи, релизы, закрытые решения. Здесь — только то, что специфично для этого репозитория.
 
 ## Что это
 Билетный стенд SoiLüDi: Next.js 14 (app router) + Supabase + Resend + Payrexx. Прод: https://slswiss-tickets.vercel.app (Vercel team `creox`). Репо `creox-ch/slswiss-tickets` (public). `git push` в `main` → авто-деплой.

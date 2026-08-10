@@ -556,7 +556,7 @@ test.describe('отчёт отправителю (калькуляторы фо�
     // обёртка дизайнера
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('linear-gradient(90deg,#B98BFF'); // градиент заголовка
-    expect(html).toContain('Забронировать место'); // CTA
+    expect(html).toContain('Посмотреть билеты'); // CTA (продажи открыты — ведём на билеты)
     expect(html).toContain('background:#0d0715'); // тёмная тема
     // реальные данные из payload, а НЕ зашитые в макет примеры дизайнера
     expect(html).toContain('Доход / мес');

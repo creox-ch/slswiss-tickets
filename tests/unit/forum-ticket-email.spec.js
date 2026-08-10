@@ -30,9 +30,11 @@ test.describe('письмо-билет форума', () => {
   test('HTML: кнопка календаря ведёт на наш .ics, ссылки на сайт форума', () => {
     const html = renderForumTicketHtml(sub, qrUrl);
     expect(html).toContain('api/forum/ics?d=1'); // «Добавить в календарь»
-    expect(html).toContain('frankenplatz.ch/index.html#program');
-    expect(html).toContain('frankenplatz.ch/legal.html#agb');
-    expect(html).toContain('frankenplatz.ch/calculators/index.html');
+    /* Чистые адреса: на сайте включён cleanUrls, .html открывался бы через
+       лишний редирект. Проверка ссылок сайта письма не видит — держим тестом. */
+    expect(html).toContain('frankenplatz.ch/#program');
+    expect(html).toContain('frankenplatz.ch/legal#agb');
+    expect(html).toContain('frankenplatz.ch/calculators');
   });
 
   test('HTML экранирует пользовательский ввод (XSS не проходит)', () => {

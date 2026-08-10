@@ -212,7 +212,10 @@ test.describe('письмо ранней регистрации', () => {
       payload: { 'Интересует': 'Оба дня', 'Мест': '2' },
     });
     expect(html).toContain('Аня');
-    expect(html).toContain('ещё не билет');
+    /* Проверяем смысл, а не дословную фразу: письмо обязано сказать, что
+       запись в списке места не держит. Формулировка менялась при открытии
+       продаж («ещё не билет» → «место это пока не держит»). */
+    expect(html).toMatch(/не держит|не билет/i);
     expect(html).toContain('Оба дня');
     expect(html).toContain('frankenplatz.ch');
   });
@@ -556,7 +559,7 @@ test.describe('отчёт отправителю (калькуляторы фо�
     // обёртка дизайнера
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('linear-gradient(90deg,#B98BFF'); // градиент заголовка
-    expect(html).toContain('Забронировать место'); // CTA
+    expect(html).toContain('Посмотреть билеты'); // CTA (продажи открыты — ведём на билеты)
     expect(html).toContain('background:#0d0715'); // тёмная тема
     // реальные данные из payload, а НЕ зашитые в макет примеры дизайнера
     expect(html).toContain('Доход / мес');
@@ -622,7 +625,7 @@ test.describe('plain-text часть писем (анти-спам: text ряд�
       payload: { Интересует: 'Оба дня', Мест: '2' },
     });
     expect(text).toContain('Аня, привет!');
-    expect(text).toContain('ещё не билет');
+    expect(text).toMatch(/не держит|не билет/i); // смысл, а не дословная фраза
     expect(text).toContain('Интересует: Оба дня');
     expect(text).toContain('Мест: 2');
     expect(text).toContain('frankenplatz.ch');

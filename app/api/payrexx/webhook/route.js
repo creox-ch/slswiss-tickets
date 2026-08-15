@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { getTransaction, verifyWebhookSignature, unflattenTransaction } from '../../../../lib/payrexx';
 import { sendTicketEmail, sendForumTicketEmail, sendMarketConfirmationEmail } from '../../../../lib/ticket';
+import { canConfirmToPaid, CONFIRMABLE_STATUSES } from '../../../../lib/ticket-status';
 import { FORUM_EVENT_SLUG } from '../../../../lib/forum-tickets';
 import { MARKET_EVENT_SLUG } from '../../../../lib/market-packages';
 
@@ -75,8 +76,11 @@ export async function POST(req) {
         console.warn('[webhook] confirmed but no ticket row', referenceId);
         return NextResponse.json({ ok: true });
       }
-      if (existing.status === 'paid' || existing.status === 'checked_in') {
-        return NextResponse.json({ ok: true, note: 'already processed' });
+      // Ранний выход: уже обработано (paid/checked_in) или возвращено (refunded).
+      // Настоящая защита — условие в самом update ниже; здесь просто не делаем
+      // лишнюю работу.
+      if (!canConfirmToPaid(existing.status)) {
+        return NextResponse.json({ ok: true, note: `already ${existing.status}` });
       }
 
       const qrToken = crypto.randomBytes(16).toString('hex');
@@ -86,7 +90,14 @@ export async function POST(req) {
         [verified?.contact?.firstname, verified?.contact?.lastname].filter(Boolean).join(' ') ||
         null;
 
-      const { error: updErr } = await supabaseAdmin
+      // Захват заказа одним атомарным шагом — как гонка двух сканеров в
+      // app/api/checkin/route.js. Payrexx повторяет доставку (наш 500, ручной
+      // re-send), и два перекрывающихся вебхука оба проходят проверку выше:
+      // каждый сгенерил бы свой qr_token и отправил своё письмо, а в БД остался
+      // бы последний — второй QR у покупателя не сработал бы на входе.
+      // .in(status) пропустит только одного; .select() возвращает затронутые
+      // строки — у проигравшего их 0, и он тихо выходит, не отправляя письма.
+      const { data: claimed, error: updErr } = await supabaseAdmin
         .from('tickets')
         .update({
           status: 'paid',
@@ -96,8 +107,15 @@ export async function POST(req) {
           buyer_name: name,
           paid_at: new Date().toISOString(),
         })
-        .eq('reference_id', referenceId);
+        .eq('reference_id', referenceId)
+        .in('status', CONFIRMABLE_STATUSES)
+        .select('id');
       if (updErr) throw new Error(`supabase update: ${updErr.message}`);
+
+      if (!claimed || claimed.length === 0) {
+        console.warn('[webhook] concurrent delivery, ticket already claimed', referenceId);
+        return NextResponse.json({ ok: true, note: 'already processed (concurrent)' });
+      }
 
       // email НЕ должен валить вебхук — ловим отдельно.
       // Форумный билет (event_slug) → брендированное письмо Frankenplatz с деталями заказа;

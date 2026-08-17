@@ -62,14 +62,25 @@ test.describe('каталог пакетов маркета — метаданн
 test.describe('письмо-подтверждение пакета', () => {
   const sub = { name: 'Аня', description: 'Маркет · основной · Early Bird', amount: 10900 };
 
-  test('HTML: бренд, пакет, сумма, «что дальше 10 августа», без QR', () => {
+  test('HTML: бренд, пакет, сумма, «что дальше», без QR', () => {
     const html = renderMarketConfirmHtml(sub);
     expect(html).toContain('Frankenplatz');
     expect(html).toContain('Ты в деле');
     expect(html).toContain('Маркет · основной · Early Bird');
     expect(html).toContain('109.00 CHF'); // 10900 рапенов
-    expect(html).toContain('10 августа'); // кабинет откроется
+    expect(html).toContain('личный кабинет'); // что дальше — ссылку пришлём письмом
     expect(html).not.toContain('QR'); // это не билет на вход
+  });
+
+  // Письмо обещало «кабинет откроется 10 августа»; дата прошла, а письмо продолжало
+  // уходить покупателям. Дату открытия не называем, пока она не решена.
+  test('в письме нет протухшего обещания даты кабинета', () => {
+    const html = renderMarketConfirmHtml(sub);
+    const text = renderMarketConfirmText(sub);
+    for (const stale of ['10 августа', '10.08']) {
+      expect(html).not.toContain(stale);
+      expect(text).not.toContain(stale);
+    }
   });
 
   test('HTML экранирует имя (XSS не проходит)', () => {
@@ -83,6 +94,6 @@ test.describe('письмо-подтверждение пакета', () => {
     expect(text).toContain('Пакет оплачен');
     expect(text).toContain('Маркет · основной · Early Bird');
     expect(text).toContain('109.00 CHF');
-    expect(text).toContain('10 августа');
+    expect(text).toContain('личный кабинет');
   });
 });

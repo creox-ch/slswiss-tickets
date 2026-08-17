@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import LoginForm from './login-form';
 import LogoutButton from './logout-button';
+import ItemList from './item-list';
 import { SESSION_COOKIE, verifySession, isAdminEmail } from '../../lib/market-auth';
 import { describePackage } from '../../lib/market-packages';
 
@@ -50,6 +51,7 @@ export default async function MarketCabinetPage({ searchParams }) {
   const moderator = isAdminEmail(email, process.env.MARKET_ADMIN_EMAILS);
   const seller = await loadSeller(email);
   const packageLabel = seller && seller.package ? describePackage(seller.package, false) : null;
+  const items = await loadItems(seller && seller.id);
 
   return (
     <Shell>
@@ -69,15 +71,13 @@ export default async function MarketCabinetPage({ searchParams }) {
       )}
 
       <section style={S.card}>
-        <h2 style={S.h2}>Твои вещи</h2>
-        <p style={S.text}>
-          Пока пусто. Форма загрузки — следующий шаг работы над кабинетом; как только она
-          появится, вещи можно будет заводить самому: фото, размеры и твоя цена.
-        </p>
-        <p style={S.hint}>
-          Не хочешь ждать — пришли фото и цены ответом на письмо об оплате, заведём вещи за
-          тебя. Для пакета «Под ключ» так и задумано.
-        </p>
+        <div style={S.sectionHead}>
+          <h2 style={{ ...S.h2, margin: 0 }}>Твои вещи</h2>
+          <a href="/market/items/new" style={S.addLink}>
+            + Добавить вещь
+          </a>
+        </div>
+        <ItemList items={items} />
       </section>
 
       <section style={S.card}>
@@ -119,13 +119,32 @@ async function loadSeller(email) {
     const { supabaseAdmin } = await import('../../lib/supabase');
     const { data } = await supabaseAdmin
       .from('market_sellers')
-      .select('name, package')
+      .select('id, name, package')
       .eq('email', email)
       .maybeSingle();
     return data || null;
   } catch (e) {
     console.error('[market] seller lookup failed', e);
     return null;
+  }
+}
+
+/** Вещи продавца. Ошибку тоже глотаем: пустой список лучше сломанной страницы. */
+async function loadItems(sellerId) {
+  if (!sellerId) return [];
+  try {
+    const { supabaseAdmin } = await import('../../lib/supabase');
+    const { data } = await supabaseAdmin
+      .from('market_items')
+      .select(
+        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note'
+      )
+      .eq('seller_id', sellerId)
+      .order('created_at', { ascending: false });
+    return data || [];
+  } catch (e) {
+    console.error('[market] items lookup failed', e);
+    return [];
   }
 }
 
@@ -179,4 +198,13 @@ const S = {
     color: '#F5D9A0',
   },
   package: { margin: '6px 0 0', fontSize: 13.5, color: '#9A8BB3' },
+  sectionHead: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 14,
+    flexWrap: 'wrap',
+  },
+  addLink: { fontSize: 14, color: '#F5C969', whiteSpace: 'nowrap' },
 };

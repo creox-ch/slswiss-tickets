@@ -24,7 +24,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(18);
 
 -- 1-2: RLS включён на обеих таблицах
 select ok(
@@ -81,6 +81,41 @@ select ok(
   not has_table_privilege('authenticated', 'public.tickets', 'TRUNCATE')
   and not has_table_privilege('authenticated', 'public.submissions', 'TRUNCATE'),
   'authenticated: нет TRUNCATE на tickets/submissions');
+
+-- ------------------------------------------------------------
+-- 13-18: тот же инвариант для таблиц кабинета маркета
+-- (supabase-market-cabinet.sql). Здесь он важнее, чем у tickets: в
+-- market_items лежат чужие вещи и цены, а в market_sellers — контакты
+-- продавцов. Публичный каталог отдаёт отдельный роут, а не PostgREST.
+-- ------------------------------------------------------------
+select ok(
+  (select bool_and(relrowsecurity) from pg_class c
+     join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname in ('market_sellers', 'market_events', 'market_items')),
+  'market_*: RLS включён на всех трёх таблицах');
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and tablename in ('market_sellers', 'market_events', 'market_items')),
+  0, 'market_*: нет ни одной RLS-policy (deny-all)');
+
+set local role anon;
+select is_empty('select 1 from public.market_sellers',
+  'anon НЕ читает market_sellers (контакты продавцов)');
+select is_empty('select 1 from public.market_items',
+  'anon НЕ читает market_items (чужие вещи и цены)');
+select throws_ok(
+  $$insert into public.market_sellers(email) values ('pgtap@probe.test')$$,
+  '42501', null, 'anon НЕ пишет в market_sellers (RLS)');
+reset role;
+
+select ok(
+  not has_table_privilege('anon', 'public.market_items', 'TRUNCATE')
+  and not has_table_privilege('anon', 'public.market_sellers', 'TRUNCATE')
+  and not has_table_privilege('authenticated', 'public.market_items', 'TRUNCATE')
+  and not has_table_privilege('authenticated', 'public.market_sellers', 'TRUNCATE'),
+  'market_*: нет TRUNCATE у публичных ролей');
 
 select * from finish();
 

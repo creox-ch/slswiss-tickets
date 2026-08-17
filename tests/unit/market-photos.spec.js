@@ -9,6 +9,7 @@ import {
   photoPath,
   photoPublicUrl,
   belongsToItem,
+  sniffImageMime,
 } from '../../lib/market-photos';
 import { MAX_PHOTOS } from '../../lib/market-items';
 
@@ -81,6 +82,38 @@ test.describe('путь файла', () => {
   });
 });
 
+// Обе проверки ниже добавлены после прогона по живому проду: заявленному типу
+// верить нельзя, а проверка принадлежности по префиксу пропускала «..».
+test.describe('что за файл на самом деле', () => {
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1]);
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]);
+  const webp = Buffer.from([
+    0x52, 0x49, 0x46, 0x46, 0x24, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
+  ]);
+  const pdf = Buffer.from('%PDF-1.4 fake document');
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>');
+
+  test('картинки узнаются по первым байтам', () => {
+    expect(sniffImageMime(jpeg)).toBe('image/jpeg');
+    expect(sniffImageMime(png)).toBe('image/png');
+    expect(sniffImageMime(webp)).toBe('image/webp');
+  });
+
+  test('PDF под видом jpeg не проходит — на проде проходил', () => {
+    expect(sniffImageMime(pdf)).toBe(null);
+  });
+
+  test('SVG не картинка для нас: это исполняемый код', () => {
+    expect(sniffImageMime(svg)).toBe(null);
+  });
+
+  test('огрызок и пустота не роняют проверку', () => {
+    expect(sniffImageMime(Buffer.from([0xff, 0xd8]))).toBe(null);
+    expect(sniffImageMime(Buffer.alloc(0))).toBe(null);
+    expect(sniffImageMime(null)).toBe(null);
+  });
+});
+
 test.describe('публичный URL и принадлежность', () => {
   test('URL собирается из адреса проекта и пути', () => {
     expect(photoPublicUrl('https://x.supabase.co', `${ITEM}/a.jpg`)).toBe(
@@ -91,9 +124,16 @@ test.describe('публичный URL и принадлежность', () => {
   });
 
   test('удалить можно только фото своей вещи', () => {
-    expect(belongsToItem(`${ITEM}/a.jpg`, ITEM)).toBe(true);
+    expect(belongsToItem(`${ITEM}/a1b2c3.jpg`, ITEM)).toBe(true);
     expect(belongsToItem('другая-вещь/a.jpg', ITEM)).toBe(false);
     expect(belongsToItem(null, ITEM)).toBe(false);
     expect(belongsToItem(`${ITEM}/a.jpg`, null)).toBe(false);
+  });
+
+  test('«..» в пути не пролезает — на проде такой путь доходил до Storage', () => {
+    expect(belongsToItem(`${ITEM}/../другая-вещь/a.jpg`, ITEM)).toBe(false);
+    expect(belongsToItem(`${ITEM}/вложенная/папка.jpg`, ITEM)).toBe(false);
+    expect(belongsToItem(`${ITEM}/файл.txt`, ITEM)).toBe(false);
+    expect(belongsToItem(`${ITEM}/`, ITEM)).toBe(false);
   });
 });

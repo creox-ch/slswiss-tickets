@@ -167,13 +167,22 @@ test.describe('валидация вещи', () => {
     expect(res.value.description_ru).toContain('Носилось');
   });
 
-  test('черновик можно сохранить без фото и описания — вещь заводят не за один присест', () => {
-    const draft = { ...good, photos: [], description: '' };
+  test('черновик можно сохранить без описания — вещь заводят не за один присест', () => {
+    const draft = { ...good, description: '' };
     expect(validateItem(draft).ok).toBe(true);
     const forPub = validateItem(draft, { forPublication: true });
     expect(forPub.ok).toBe(false);
-    expect(forPub.errors.join(' ')).toMatch(/фото/i);
     expect(forPub.errors.join(' ')).toMatch(/[Оо]пиши/);
+  });
+
+  // Баг, найденный вторым кругом ручного тестирования: форма не присылает фото
+  // (они грузятся своим роутом), а валидатор возвращал photos:[] среди полей.
+  // Это попадало в UPDATE — проверка публикации видела ноль фото при четырёх в
+  // базе, а сохранение формы затёрло бы их совсем.
+  test('в полях для БД нет фото — форма не должна ими управлять', () => {
+    const res = validateItem({ ...good, photos: ['подсунутое.jpg'] });
+    expect(res.ok).toBe(true);
+    expect('photos' in res.value).toBe(false);
   });
 
   test('без бренда, категории и состояния не пускаем', () => {
@@ -195,12 +204,20 @@ test.describe('валидация вещи', () => {
     expect(res.errors.join(' ')).toMatch(/выше твоей/);
   });
 
-  test('фото не больше пяти', () => {
-    const six = { ...good, photos: ['1', '2', '3', '4', '5', '6'] };
-    const res = validateItem(six, { forPublication: true });
+  test('лимит фото проверяется там, где их загружают, а не в форме', () => {
+    // Шестое фото отбивает роут загрузки (проверено на проде: 409), форма же
+    // о фото вообще не знает — и не должна.
+    expect(MIN_PHOTOS).toBe(1);
+    expect(MAX_PHOTOS).toBe(5);
+    const res = canPublish({
+      brand: 'X',
+      title: 'Y',
+      description_ru: 'Z',
+      price_rappen: 100,
+      photos: ['1', '2', '3', '4', '5', '6'],
+    });
     expect(res.ok).toBe(false);
     expect(res.errors.join(' ')).toContain(String(MAX_PHOTOS));
-    expect(MIN_PHOTOS).toBe(1);
   });
 
   test('длинные поля обрезаются, а не роняют запись', () => {

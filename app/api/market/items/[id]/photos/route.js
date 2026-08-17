@@ -8,6 +8,7 @@ import {
   canAddPhoto,
   photoPath,
   belongsToItem,
+  sniffImageMime,
 } from '../../../../../../lib/market-photos';
 import { MAX_PHOTOS } from '../../../../../../lib/market-items';
 
@@ -80,10 +81,20 @@ export async function POST(req, { params }) {
       );
     }
 
-    const path = photoPath(item.id, file.type, crypto.randomBytes(12).toString('hex'));
-    if (!path) return NextResponse.json({ ok: false, error: 'Не тот формат.' }, { status: 400 });
-
     const bytes = Buffer.from(await file.arrayBuffer());
+
+    // Заявленному типу не верим: он приходит из формы. Смотрим первые байты —
+    // так PDF или что угодно ещё не ляжет в каталог под видом фотографии.
+    const realMime = sniffImageMime(bytes);
+    if (!realMime || realMime !== file.type) {
+      return NextResponse.json(
+        { ok: false, error: 'Это не похоже на фото. Нужен JPG, PNG или WebP.' },
+        { status: 400 }
+      );
+    }
+
+    const path = photoPath(item.id, realMime, crypto.randomBytes(12).toString('hex'));
+    if (!path) return NextResponse.json({ ok: false, error: 'Не тот формат.' }, { status: 400 });
     const { error: upErr } = await supabaseAdmin.storage
       .from(PHOTO_BUCKET)
       .upload(path, bytes, { contentType: file.type, upsert: false });

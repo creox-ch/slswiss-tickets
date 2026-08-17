@@ -23,6 +23,8 @@
 - Сканер: `app/scan/page.jsx` (@zxing/browser + ручной ввод + поле ключа персонала).
 - QR для письма: `app/api/qr/route.js` (`?t=TOKEN` → PNG).
 - Клиенты: `lib/supabase.js` (ленивый Proxy, `supabaseAdmin`), `lib/ticket.js` (ленивый Resend, `sendTicketEmail`, `escapeHtml`), `lib/payrexx.js` (подписи/gateway/transaction/`unflattenTransaction`; env лениво).
+- Cron (Vercel, расписание в `vercel.json`; оба закрыты `CRON_SECRET`, без него 503): `app/api/cron/newsletter-digest` (сводка подписок) и `app/api/cron/cleanup-pending` (брошенные корзины: `pending` → `failed` через сутки, удаление через 30 дней; пороги — `lib/pending-cleanup.js`). ⚠ Hobby даёт **2 задания на аккаунт, раз в сутки** — обе заняты.
+- Безопасность в CI: workflow «Безопасность» (`npm run audit:gate` + gitleaks) и `.github/dependabot.yml`. Гейт роняет сборку на всём, чего нет в `.audit-allowlist.json`, на истёкшем сроке принятия и на новой дыре в уже принятом пакете (логика — `lib/audit-gate.js`).
 - Схема БД: `supabase-schema.sql` (таблица `tickets`).
 - Тесты: `tests/unit` + `tests/e2e` (Playwright, `npm test`; e2e мокают API — внешние сервисы не нужны). CI: `.github/workflows/test.yml`.
 
@@ -30,4 +32,4 @@
 Gateway (не Paylink) · независимая верификация вебхука · ленивая инициализация клиентов · service_role+RLS без anon · письмо не валит оплату · amount в раппенах (100=1.00 CHF) · репо public (Hobby не деплоит приватный org-repo) · dev/issue удалён 2026-07-12 (security).
 
 ## Текущий спринт
-См. «🔴 ГДЕ МЫ СЕЙЧАС» в STATE.md. Кратко: стенд работает end-to-end (оплата Payrexx проверена вживую 2026-06-29). Часть 2 ТЗ (подписка SLS 19 CHF/мес) не реализована; решение 2026-07-03 — делать её на **Payrexx** (единый провайдер платформы), не на Stripe. ⚠ Payrexx trial до ~2026-07-24.
+См. «🔴 ГДЕ МЫ СЕЙЧАС» в STATE.md. Кратко: стенд работает end-to-end (оплата Payrexx проверена вживую 2026-06-29), Payrexx на платном плане и в боевом режиме. **Часть 2 ТЗ (подписка SLS 19 CHF/мес) — 🧊 заморожена решением Иванны 2026-08-17**: не начинать, не предлагать; когда разморозится — на Payrexx, не на Stripe.

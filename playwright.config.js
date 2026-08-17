@@ -27,15 +27,17 @@ module.exports = defineConfig({
     // Заглушки, чтобы /api/forms прошёл проверку «база подключена» и integration-
     // тесты дошли до реальных guard-веток. К настоящему Supabase не ходим —
     // ленивый клиент создаётся только на insert/select, куда эти тесты не заходят.
-    // CHECKIN_STAFF_KEY / PAYREXX_WEBHOOK_SIGNING_KEY — фиксированные значения,
-    // чтобы integration-тесты проверяли auth-ветку сканера и HMAC-подпись вебхука
-    // на HTTP-границе (детерминированно, без внешних сервисов).
+    // CHECKIN_STAFF_KEY / PAYREXX_WEBHOOK_SIGNING_KEY / CRON_SECRET — фиксированные
+    // значения, чтобы integration-тесты проверяли auth-ветку сканера, HMAC-подпись
+    // вебхука и защиту cron-роутов на HTTP-границе (детерминированно, без внешних
+    // сервисов).
     env: {
       ...process.env,
       SUPABASE_URL: process.env.SUPABASE_URL || 'http://127.0.0.1:54321',
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key',
       CHECKIN_STAFF_KEY: process.env.CHECKIN_STAFF_KEY || 'test-staff-key',
       PAYREXX_WEBHOOK_SIGNING_KEY: process.env.PAYREXX_WEBHOOK_SIGNING_KEY || 'test-webhook-signing-key',
+      CRON_SECRET: process.env.CRON_SECRET || 'test-cron-secret',
     },
   },
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../../lib/supabase';
 import { sessionEmailFromRequest } from '../../../../../lib/market-auth';
-import { validateItem, canTransition } from '../../../../../lib/market-items';
+import { validateItem, canTransition, canPublish } from '../../../../../lib/market-items';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,9 @@ async function ownedItem(req, id) {
 
   const { data: item, error: itemErr } = await supabaseAdmin
     .from('market_items')
-    .select('id, status, seller_id')
+    // photos и остальные поля нужны для проверки готовности к публикации:
+    // фото приходят не с формой, а из своего роута — см. canPublish.
+    .select('id, status, seller_id, photos, brand, title, description_ru, price_rappen')
     .eq('id', id)
     .maybeSingle();
   if (itemErr) throw new Error(`supabase select item: ${itemErr.message}`);
@@ -77,11 +79,21 @@ export async function PATCH(req, { params }) {
     const patch = {};
     // Поля правим, только если их прислали: PATCH без полей — это чистая
     // смена статуса, и затирать описание пустотой в этом случае нельзя.
+    // Проверяем НЕ строго: строгую проверку делает canPublish ниже, по тому,
+    // что реально лежит в базе, — фото форма не присылает.
     if (body.brand !== undefined || body.title !== undefined || body.price !== undefined) {
-      const check = validateItem(body, { forPublication: target === 'pending' });
+      const check = validateItem(body, { forPublication: false });
       if (!check.ok) return NextResponse.json({ ok: false, errors: check.errors }, { status: 400 });
       Object.assign(patch, check.value);
     }
+
+    // Готовность к публикации считаем по сохранённой вещи с уже наложенной
+    // правкой: человек в одном действии и поля дописал, и отправил.
+    if (target === 'pending') {
+      const ready = canPublish({ ...item, ...patch });
+      if (!ready.ok) return NextResponse.json({ ok: false, errors: ready.errors }, { status: 400 });
+    }
+
     if (target) patch.status = target;
     patch.updated_at = new Date().toISOString();
 

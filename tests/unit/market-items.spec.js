@@ -15,6 +15,7 @@ import {
   formatPrice,
   parsePriceToRappen,
   validateItem,
+  canPublish,
   coveredByRefundGuarantee,
 } from '../../lib/market-items';
 
@@ -209,6 +210,47 @@ test.describe('валидация вещи', () => {
   test('не-объект на входе не роняет валидатор', () => {
     expect(validateItem(null).ok).toBe(false);
     expect(validateItem('вещь').ok).toBe(false);
+  });
+});
+
+// Поймано живьём при первом тесте кабинета: продавец загрузил фото, а форма
+// на отправке ругалась «добавь хотя бы одно фото». Причина — проверяли тело
+// запроса, а фото туда не попадают: они грузятся своим роутом и лежат в БД.
+// Обратная сторона той же ошибки: кнопка «отправить» из списка шлёт только
+// действие, и вещь совсем без фото уходила бы на модерацию.
+test.describe('готовность к публикации — по сохранённой вещи, а не по форме', () => {
+  const saved = {
+    brand: 'Max Mara',
+    title: 'Пальто',
+    description_ru: 'Носилось два сезона.',
+    price_rappen: 59000,
+    photos: ['items/a.jpg'],
+  };
+
+  test('вещь с фото в базе публикуется, даже если форма фото не прислала', () => {
+    expect(canPublish(saved)).toEqual({ ok: true, errors: [] });
+  });
+
+  test('без фото не публикуем — сколько бы полей ни прислала форма', () => {
+    const res = canPublish({ ...saved, photos: [] });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(' ')).toMatch(/фото/i);
+  });
+
+  test('пустой список и мусор вместо фото — одно и то же', () => {
+    expect(canPublish({ ...saved, photos: null }).ok).toBe(false);
+    expect(canPublish({ ...saved, photos: [null, ''] }).ok).toBe(false);
+  });
+
+  test('незаполненные поля называются по одному, а не «что-то не так»', () => {
+    const res = canPublish({ photos: ['a.jpg'] });
+    expect(res.ok).toBe(false);
+    expect(res.errors).toHaveLength(3); // бренд+название, описание, цена
+  });
+
+  test('не-объект не роняет проверку', () => {
+    expect(canPublish(null).ok).toBe(false);
+    expect(canPublish('вещь').ok).toBe(false);
   });
 });
 

@@ -21,6 +21,20 @@ updates:
       minor-and-patch:
         patterns: ['*']
         update-types: [minor, patch]
+    ignore:
+      # Мажор фреймворка — человеческое решение, а не PR от бота: он трогает
+      # приложение, на котором висят оплата, вебхук и письма, и требует живой
+      # проверки покупки. Первый же день с Dependabot принёс «next 14 → 16»
+      # ровно в тот момент, когда мы осознанно встали на 15.x.
+      # Безопасность от этого не страдает: дыры ловит гейт в workflow
+      # «Безопасность», и просроченная запись в .audit-allowlist.json роняет CI.
+      - dependency-name: next
+        update-types: ['version-update:semver-major']
+      # react/react-dom версионно связаны с next — их мажор приходит вместе с ним.
+      - dependency-name: react
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-major']
 
   # Версии самих actions в workflow-файлах: они тоже устаревают, а про них
   # обычно забывают — вспоминают, когда GitHub отключает старый runner.
@@ -31,5 +45,12 @@ updates:
       day: monday
       time: '06:00'
       timezone: Europe/Zurich
+    open-pull-requests-limit: 2
     commit-message:
       prefix: 'chore(ci)'
+    groups:
+      # Все actions одним PR, включая мажорные. Без группировки первый же
+      # запуск дал три отдельных PR на checkout/setup-node/upload-artifact —
+      # это правки одной строки в одном файле, разбирать их порознь незачем.
+      actions:
+        patterns: ['*']

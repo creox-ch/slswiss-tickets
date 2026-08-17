@@ -1,0 +1,35 @@
+version: 2
+
+# Обновления зависимостей приходят PR-ами и проходят обычный CI (Tests +
+# Безопасность). Раз в неделю, а не ежедневно: этот репо ведут два человека,
+# и поток PR-ов, который никто не смотрит, хуже, чем его отсутствие.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Zurich
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      # Патчи и минорные — одним PR: по отдельности это шум, а разбирать
+      # интересно только мажорные (они ломают) и безопасность.
+      minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # Версии самих actions в workflow-файлах: они тоже устаревают, а про них
+  # обычно забывают — вспоминают, когда GitHub отключает старый runner.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Zurich
+    commit-message:
+      prefix: 'chore(ci)'

@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "playwright test"
+    "test": "playwright test",
+    "audit:gate": "node scripts/audit-gate.mjs"
+  },
+  "//overrides": "postcss тянет next 14 и пинит уязвимую 8.4.31 (4 advisory, все про sourceMappingURL и stringify). Ждать патча в next 14 бессмысленно — ветка получает только апгрейд до 16. 8.4.31 → 8.5.x минорное, сборка проверена.",
+  "overrides": {
+    "postcss": "^8.5.26"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0"

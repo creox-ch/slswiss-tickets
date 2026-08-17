@@ -27,15 +27,18 @@ test.describe('POST /api/market/auth/request', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('без MARKET_SESSION_SECRET роут честно отвечает 503, а не делает вид, что письмо ушло', async ({
-    request,
-  }) => {
-    // В playwright.config.js секрет не задан: сессию подписать нечем.
+  // Раньше здесь проверялся ответ 503 «вход не настроен»: в тестах не было
+  // MARKET_SESSION_SECRET. Теперь он задан (иначе не подписать сессию для
+  // остальных тестов), поэтому проверяем противоположное: роут не отговаривается
+  // ненастроенностью, а идёт работать. Ветка «секрета нет» осталась в коде и
+  // сработала на проде ровно так, как задумано — переменную тогда завели не в тот проект.
+  test('с валидным адресом роут не отговаривается «вход не настроен»', async ({ request }) => {
     const res = await request.post(REQUEST, { data: { email: 'anna@example.ch' } });
-    expect(res.status()).toBe(503);
-    const body = await res.json();
-    expect(body.ok).toBe(false);
-    expect(body.error).toMatch(/недоступен/i);
+    const body = await res.json().catch(() => ({}));
+    expect(String(body.error || '')).not.toMatch(/вход не настроен/i);
+    // База заглушечная: дальше роут либо промолчит (адрес неизвестен), либо упадёт
+    // на запросе к ней. Главное — что он туда дошёл.
+    expect([200, 500]).toContain(res.status());
   });
 });
 
@@ -46,10 +49,12 @@ test.describe('GET /api/market/auth/verify', () => {
     expect(res.headers()['location']).toContain('/market?login=invalid');
   });
 
-  test('токен есть, но вход не настроен → login=unavailable, а не 500', async ({ request }) => {
+  test('с непонятным токеном уводит на страницу входа, а не роняет 500', async ({ request }) => {
     const res = await request.get(`${VERIFY}?token=abc`, { maxRedirects: 0 });
     expect(res.status()).toBe(302);
-    expect(res.headers()['location']).toContain('login=unavailable');
+    // База в тестах заглушечная, поэтому причина будет error; важно, что человек
+    // в любом случае оказывается на понятной странице, а не на белом экране.
+    expect(res.headers()['location']).toMatch(/\/market\?login=(invalid|error|unavailable)/);
   });
 
   test('сессионную cookie на неудачной проверке не ставим', async ({ request }) => {

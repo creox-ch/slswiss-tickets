@@ -66,7 +66,7 @@ export default async function MarketCabinetPage({ searchParams }) {
 
       {moderator && (
         <p style={S.badge}>
-          Ты модератор: экран проверки вещей появится на шаге 5 — пока модерируем руками.
+          Ты модератор. <a href="/market/admin" style={S.badgeLink}>Очередь на проверку →</a>
         </p>
       )}
 
@@ -207,4 +207,5 @@ const S = {
     flexWrap: 'wrap',
   },
   addLink: { fontSize: 14, color: '#F5C969', whiteSpace: 'nowrap' },
+  badgeLink: { color: '#F5C969', fontWeight: 700 },
 };

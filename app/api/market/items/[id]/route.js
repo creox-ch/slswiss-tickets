@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../../lib/supabase';
 import { sessionEmailFromRequest } from '../../../../../lib/market-auth';
-import { validateItem, canTransition, canPublish } from '../../../../../lib/market-items';
+import {
+  validateItem,
+  canPublish,
+  resolveAction,
+  canApply,
+} from '../../../../../lib/market-items';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +24,8 @@ export const dynamic = 'force-dynamic';
  * угадать несложно, и без этой проверки можно было бы править чужие карточки.
  */
 
-const ACTION_TARGET = { submit: 'pending', withdraw: 'withdrawn', draft: 'draft' };
+// Список действий и их смысл живут в lib/market-items рядом с таблицей
+// переходов — см. resolveAction/canApply.
 
 function unauthorized() {
   return NextResponse.json({ ok: false, error: 'Нужно войти в кабинет.' }, { status: 401 });
@@ -64,12 +70,11 @@ export async function PATCH(req, { params }) {
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));
-    const action = body.action ? String(body.action) : null;
-    const target = action ? ACTION_TARGET[action] : null;
-    if (action && !target) {
+    const { known, target } = resolveAction(body.action);
+    if (!known) {
       return NextResponse.json({ ok: false, error: 'Неизвестное действие.' }, { status: 400 });
     }
-    if (target && !canTransition(item.status, target)) {
+    if (!canApply(item.status, target)) {
       return NextResponse.json(
         { ok: false, error: `Из статуса «${item.status}» так нельзя.` },
         { status: 409 }

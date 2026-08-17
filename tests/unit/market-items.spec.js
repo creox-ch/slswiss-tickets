@@ -16,6 +16,8 @@ import {
   parsePriceToRappen,
   validateItem,
   canPublish,
+  resolveAction,
+  canApply,
   coveredByRefundGuarantee,
 } from '../../lib/market-items';
 
@@ -210,6 +212,41 @@ test.describe('валидация вещи', () => {
   test('не-объект на входе не роняет валидатор', () => {
     expect(validateItem(null).ok).toBe(false);
     expect(validateItem('вещь').ok).toBe(false);
+  });
+});
+
+// Тоже с первого живого теста: «Сохранить черновик» отвечало «Неизвестное
+// действие» — форма слала action='save', а роут знал только submit/withdraw/draft.
+// И «вернуть в черновики» для вещи, которая уже черновик, упиралось в таблицу
+// переходов, хотя это не переход, а сохранение.
+test.describe('действия формы', () => {
+  test('save — сохранение без смены статуса', () => {
+    expect(resolveAction('save')).toEqual({ known: true, target: null });
+    expect(resolveAction(undefined)).toEqual({ known: true, target: null });
+    expect(resolveAction('')).toEqual({ known: true, target: null });
+  });
+
+  test('остальные кнопки ведут в свои статусы', () => {
+    expect(resolveAction('submit').target).toBe('pending');
+    expect(resolveAction('withdraw').target).toBe('withdrawn');
+    expect(resolveAction('draft').target).toBe('draft');
+  });
+
+  test('выдуманное действие не проходит', () => {
+    expect(resolveAction('approve')).toEqual({ known: false, target: null });
+    expect(resolveAction('delete').known).toBe(false);
+  });
+
+  test('сохранение черновика черновиком — не переход, а сохранение', () => {
+    expect(canApply('draft', null)).toBe(true);
+    expect(canApply('draft', 'draft')).toBe(true);
+    expect(canApply('pending', null)).toBe(true);
+  });
+
+  test('запрещённые переходы остаются запрещёнными', () => {
+    expect(canApply('draft', 'pending')).toBe(true);
+    expect(canApply('sold', 'draft')).toBe(false);
+    expect(canApply('sold', 'withdrawn')).toBe(false);
   });
 });
 

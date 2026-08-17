@@ -15,6 +15,9 @@ import {
   formatPrice,
   parsePriceToRappen,
   validateItem,
+  canPublish,
+  resolveAction,
+  canApply,
   coveredByRefundGuarantee,
 } from '../../lib/market-items';
 
@@ -209,6 +212,82 @@ test.describe('валидация вещи', () => {
   test('не-объект на входе не роняет валидатор', () => {
     expect(validateItem(null).ok).toBe(false);
     expect(validateItem('вещь').ok).toBe(false);
+  });
+});
+
+// Тоже с первого живого теста: «Сохранить черновик» отвечало «Неизвестное
+// действие» — форма слала action='save', а роут знал только submit/withdraw/draft.
+// И «вернуть в черновики» для вещи, которая уже черновик, упиралось в таблицу
+// переходов, хотя это не переход, а сохранение.
+test.describe('действия формы', () => {
+  test('save — сохранение без смены статуса', () => {
+    expect(resolveAction('save')).toEqual({ known: true, target: null });
+    expect(resolveAction(undefined)).toEqual({ known: true, target: null });
+    expect(resolveAction('')).toEqual({ known: true, target: null });
+  });
+
+  test('остальные кнопки ведут в свои статусы', () => {
+    expect(resolveAction('submit').target).toBe('pending');
+    expect(resolveAction('withdraw').target).toBe('withdrawn');
+    expect(resolveAction('draft').target).toBe('draft');
+  });
+
+  test('выдуманное действие не проходит', () => {
+    expect(resolveAction('approve')).toEqual({ known: false, target: null });
+    expect(resolveAction('delete').known).toBe(false);
+  });
+
+  test('сохранение черновика черновиком — не переход, а сохранение', () => {
+    expect(canApply('draft', null)).toBe(true);
+    expect(canApply('draft', 'draft')).toBe(true);
+    expect(canApply('pending', null)).toBe(true);
+  });
+
+  test('запрещённые переходы остаются запрещёнными', () => {
+    expect(canApply('draft', 'pending')).toBe(true);
+    expect(canApply('sold', 'draft')).toBe(false);
+    expect(canApply('sold', 'withdrawn')).toBe(false);
+  });
+});
+
+// Поймано живьём при первом тесте кабинета: продавец загрузил фото, а форма
+// на отправке ругалась «добавь хотя бы одно фото». Причина — проверяли тело
+// запроса, а фото туда не попадают: они грузятся своим роутом и лежат в БД.
+// Обратная сторона той же ошибки: кнопка «отправить» из списка шлёт только
+// действие, и вещь совсем без фото уходила бы на модерацию.
+test.describe('готовность к публикации — по сохранённой вещи, а не по форме', () => {
+  const saved = {
+    brand: 'Max Mara',
+    title: 'Пальто',
+    description_ru: 'Носилось два сезона.',
+    price_rappen: 59000,
+    photos: ['items/a.jpg'],
+  };
+
+  test('вещь с фото в базе публикуется, даже если форма фото не прислала', () => {
+    expect(canPublish(saved)).toEqual({ ok: true, errors: [] });
+  });
+
+  test('без фото не публикуем — сколько бы полей ни прислала форма', () => {
+    const res = canPublish({ ...saved, photos: [] });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(' ')).toMatch(/фото/i);
+  });
+
+  test('пустой список и мусор вместо фото — одно и то же', () => {
+    expect(canPublish({ ...saved, photos: null }).ok).toBe(false);
+    expect(canPublish({ ...saved, photos: [null, ''] }).ok).toBe(false);
+  });
+
+  test('незаполненные поля называются по одному, а не «что-то не так»', () => {
+    const res = canPublish({ photos: ['a.jpg'] });
+    expect(res.ok).toBe(false);
+    expect(res.errors).toHaveLength(3); // бренд+название, описание, цена
+  });
+
+  test('не-объект не роняет проверку', () => {
+    expect(canPublish(null).ok).toBe(false);
+    expect(canPublish('вещь').ok).toBe(false);
   });
 });
 

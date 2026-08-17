@@ -1,0 +1,76 @@
+name: Безопасность
+
+# Два гейта, которых у репо не было: известные уязвимости в зависимостях
+# и секреты, случайно попавшие в код или в историю.
+#
+# Отдельно от Tests намеренно: у них разный смысл красного. Tests краснеют
+# от нашей ошибки в коде, этот workflow — ещё и просто от времени (вчера
+# зависимость была чистой, сегодня в ней CVE). Поэтому здесь есть расписание.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  schedule:
+    # Понедельник, 06:00 UTC — чтобы новая CVE всплывала в начале недели,
+    # а не в день релиза.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Зависимости (npm audit)
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Гейт: high/critical роняют сборку, КРОМЕ явно принятого
+      # в .audit-allowlist.json (с причиной и сроком пересмотра).
+      # Голый `npm audit --audit-level=high` здесь не годится: в репо есть
+      # известная неустранимая уязвимость (Next 14), и гейт горел бы всегда.
+      - name: Гейт по уязвимостям (npm audit + allowlist)
+        run: npm run audit:gate
+
+      # Полный вывод для человека — включая moderate/low, которые гейт не ловит.
+      - name: Полный отчёт npm audit (без гейта)
+        if: always()
+        continue-on-error: true
+        run: npm audit
+
+  secrets:
+    name: Секреты (gitleaks)
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Вся история: ключ, удалённый следующим коммитом, из репо никуда
+          # не делся — public-репо, его видно всем.
+          fetch-depth: 0
+
+      # Ставим бинарник из релиза, а не gitleaks-action: сам gitleaks под MIT,
+      # а его официальный action для организаций требует лицензионный ключ.
+      # Версия запинена — чтобы CI не менял поведение сам по себе.
+      - name: Установить gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks version
+
+      - name: Поиск секретов в коде и истории
+        # --redact: найденный секрет НЕ печатается в лог (логи Actions в public-репо
+        # читает кто угодно — иначе отчёт сам стал бы утечкой).
+        run: ./gitleaks git . --no-banner --redact --verbose

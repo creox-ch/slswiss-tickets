@@ -48,7 +48,10 @@ export default function ItemForm({ item = null }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
-        window.location.href = '/market';
+        // Новую вещь уводим на её же экран правки: там загрузка фото, без
+        // которого вещь всё равно не уйдёт на проверку. В кабинет отправлять
+        // бессмысленно — человек тут же вернётся сюда за фото.
+        window.location.href = editing ? '/market' : `/market/items/${data.item.id}/edit`;
         return;
       }
       setErrors(data.errors || [data.error || 'Не получилось сохранить.']);
@@ -162,16 +165,28 @@ export default function ItemForm({ item = null }) {
       )}
 
       <div style={S.actions}>
-        <button type="button" style={S.gold} disabled={busy} onClick={() => save('submit')}>
-          {busy ? 'Сохраняю…' : 'Отправить на проверку'}
-        </button>
-        <button type="button" style={S.ghost} disabled={busy} onClick={() => save('save')}>
-          Сохранить черновик
-        </button>
+        {editing ? (
+          <>
+            <button type="button" style={S.gold} disabled={busy} onClick={() => save('submit')}>
+              {busy ? 'Сохраняю…' : 'Отправить на проверку'}
+            </button>
+            <button type="button" style={S.ghost} disabled={busy} onClick={() => save('save')}>
+              Сохранить черновик
+            </button>
+          </>
+        ) : (
+          // На новой вещи «отправить» кнопки нет намеренно: фото добавляются на
+          // следующем экране, а без фото проверка всё равно вернёт ошибку —
+          // предлагать заведомо неработающее действие нечестно.
+          <button type="button" style={S.gold} disabled={busy} onClick={() => save('save')}>
+            {busy ? 'Сохраняю…' : 'Сохранить и добавить фото'}
+          </button>
+        )}
       </div>
       <p style={S.hint}>
-        Фото добавим следующим шагом — сейчас важно завести саму вещь. Без фото карточка на
-        проверку не уйдёт, поэтому пока сохраняй черновиком, если фото ещё нет.
+        {editing
+          ? 'Фото добавляются выше — минимум одно, иначе вещь не уйдёт на проверку.'
+          : 'Сохрани черновик — на следующем экране появится загрузка фото. Без фото вещь на проверку не уйдёт.'}
       </p>
     </form>
   );

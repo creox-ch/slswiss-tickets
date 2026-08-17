@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
 import ItemForm from '../../../item-form';
+import PhotoUploader from '../../../photo-uploader';
 import { SESSION_COOKIE, verifySession } from '../../../../../lib/market-auth';
 
 export const metadata = { title: 'Правка вещи — кабинет продавца' };
@@ -29,6 +30,15 @@ export default async function EditItemPage({ params }) {
         {item.status === 'rejected' && item.moderation_note && (
           <p style={S.note}>Причина отказа: {item.moderation_note}</p>
         )}
+
+        <section style={S.block}>
+          <PhotoUploader
+            itemId={item.id}
+            initialPhotos={Array.isArray(item.photos) ? item.photos : []}
+            supabaseUrl={process.env.SUPABASE_URL}
+          />
+        </section>
+
         <ItemForm item={item} />
       </div>
     </main>
@@ -70,6 +80,12 @@ const S = {
   inner: { maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
   back: { fontSize: 14, color: '#B98BFF', textDecoration: 'none' },
   h1: { margin: 0, fontSize: 26 },
+  block: {
+    background: 'rgba(255,255,255,.04)',
+    border: '1px solid rgba(255,255,255,.12)',
+    borderRadius: 16,
+    padding: '18px 20px',
+  },
   note: {
     margin: 0,
     padding: '12px 16px',

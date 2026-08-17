@@ -38,6 +38,13 @@ module.exports = defineConfig({
       CHECKIN_STAFF_KEY: process.env.CHECKIN_STAFF_KEY || 'test-staff-key',
       PAYREXX_WEBHOOK_SIGNING_KEY: process.env.PAYREXX_WEBHOOK_SIGNING_KEY || 'test-webhook-signing-key',
       CRON_SECRET: process.env.CRON_SECRET || 'test-cron-secret',
+      // Кабинет маркета: фиксированный секрет позволяет подписать сессионную
+      // cookie прямо в тесте (tests/helpers/market-session.js) и пройти роуты
+      // ОТ ЛИЦА продавца или модератора, а не только упереться в 401.
+      // Пока этого не было, стык «форма ↔ роут» оставался слепым пятном: два
+      // бага с фото ловились руками на проде, а не тестами.
+      MARKET_SESSION_SECRET: process.env.MARKET_SESSION_SECRET || 'test-market-session-secret',
+      MARKET_ADMIN_EMAILS: process.env.MARKET_ADMIN_EMAILS || 'moderator@test.local',
     },
   },
 });

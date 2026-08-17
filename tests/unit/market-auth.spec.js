@@ -12,6 +12,7 @@ import {
   adminEmails,
   isAdminEmail,
   sessionCookieOptions,
+  sessionEmailFromRequest,
 } from '../../lib/market-auth';
 
 const SECRET = 'test-secret-value';
@@ -119,6 +120,24 @@ test.describe('сессионная cookie', () => {
     expect(opts.maxAge).toBe(SESSION_TTL_MS / 1000);
     expect(sessionCookieOptions({ secure: false }).secure).toBe(false); // локальный http
     expect(SESSION_COOKIE).toBe('mk_session');
+  });
+});
+
+test.describe('сессия из запроса', () => {
+  const req = (value) => ({
+    cookies: { get: () => (value === undefined ? undefined : { value }) },
+  });
+
+  test('валидная cookie → email', () => {
+    const value = signSession('anna@example.ch', SECRET);
+    expect(sessionEmailFromRequest(req(value), SECRET)).toBe('anna@example.ch');
+  });
+
+  test('нет cookie, чужая подпись, кривой объект запроса → null', () => {
+    expect(sessionEmailFromRequest(req(undefined), SECRET)).toBe(null);
+    expect(sessionEmailFromRequest(req('подделка.deadbeef'), SECRET)).toBe(null);
+    expect(sessionEmailFromRequest({}, SECRET)).toBe(null);
+    expect(sessionEmailFromRequest(null, SECRET)).toBe(null);
   });
 });
 

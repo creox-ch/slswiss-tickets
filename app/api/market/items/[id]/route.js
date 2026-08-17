@@ -7,6 +7,7 @@ import {
   resolveAction,
   canApply,
 } from '../../../../../lib/market-items';
+import { PHOTO_BUCKET } from '../../../../../lib/market-photos';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -142,6 +143,17 @@ export async function DELETE(req, { params }) {
         { ok: false, error: 'Удалить можно только черновик. Отправленную вещь можно снять.' },
         { status: 409 }
       );
+    }
+
+    // Сначала файлы, потом строка: иначе после удаления вещи мы уже не узнаем,
+    // какие фото ей принадлежали, и они останутся в bucket навсегда (на прогоне
+    // QA так и накопилось пять осиротевших файлов).
+    const photos = Array.isArray(item.photos) ? item.photos.filter(Boolean) : [];
+    if (photos.length) {
+      const { error: rmErr } = await supabaseAdmin.storage.from(PHOTO_BUCKET).remove(photos);
+      // Не роняем удаление вещи из-за файлов: продавец просил убрать карточку,
+      // и оставлять её из-за недоступного хранилища неправильно.
+      if (rmErr) console.error('[market/items DELETE] photos remove failed', rmErr);
     }
 
     const { error: delErr } = await supabaseAdmin

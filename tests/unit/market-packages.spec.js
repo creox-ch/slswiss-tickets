@@ -83,6 +83,24 @@ test.describe('письмо-подтверждение пакета', () => {
     }
   });
 
+  // Шаг 2 кабинета: доступ выдаётся в момент оплаты, а не «отдельным письмом».
+  // Ссылка ведёт на страницу входа с подставленным адресом — письмо об оплате
+  // открывают и через неделю, а одноразовый токен живёт полчаса.
+  test('со ссылкой на кабинет письмо зовёт войти, без неё — обещает письмо', () => {
+    const withCabinet = { ...sub, cabinetUrl: 'https://example.test/market?email=a%40b.ch' };
+    const html = renderMarketConfirmHtml(withCabinet);
+    expect(html).toContain('https://example.test/market?email=a%40b.ch');
+    expect(html).toContain('Открыть кабинет продавца');
+    expect(html).not.toContain('отдельным письмом');
+
+    const text = renderMarketConfirmText(withCabinet);
+    expect(text).toContain('https://example.test/market?email=a%40b.ch');
+    expect(text).toContain('Пароль не нужен');
+
+    // Без ссылки поведение прежнее — письмо не обещает того, чего нет.
+    expect(renderMarketConfirmHtml(sub)).toContain('отдельным письмом');
+  });
+
   test('HTML экранирует имя (XSS не проходит)', () => {
     const html = renderMarketConfirmHtml({ name: '<script>x</script>', description: 'Онлайн', amount: 8900 });
     expect(html).not.toContain('<script>x</script>');

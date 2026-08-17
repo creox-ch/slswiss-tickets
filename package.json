@@ -15,11 +15,11 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.45.0"
+    "@playwright/test": "^1.62.1"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
-    "@zxing/browser": "^0.1.5",
+    "@supabase/supabase-js": "^2.112.3",
+    "@zxing/browser": "^0.2.1",
     "next": "^15.5.23",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",

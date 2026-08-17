@@ -9,9 +9,10 @@
     "test": "playwright test",
     "audit:gate": "node scripts/audit-gate.mjs"
   },
-  "//overrides": "postcss тянет next 14 и пинит уязвимую 8.4.31 (4 advisory, все про sourceMappingURL и stringify). Ждать патча в next 14 бессмысленно — ветка получает только апгрейд до 16. 8.4.31 → 8.5.x минорное, сборка проверена.",
+  "//overrides": "sharp — optionalDependency next 15 (^0.34.3) для оптимизации картинок, которой мы не пользуемся вовсе; в 0.34.x четыре унаследованных из libvips CVE, закрыты в 0.35.0. postcss остаётся зафиксированным на всякий случай: next пинил уязвимую 8.4.31, и апгрейд эту привычку не отменяет.",
   "overrides": {
-    "postcss": "^8.5.26"
+    "postcss": "^8.5.26",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0"
@@ -19,10 +20,10 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "@zxing/browser": "^0.1.5",
-    "next": "^14.2.5",
+    "next": "^15.5.23",
     "qrcode": "^1.5.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "resend": "^4.0.0"
   }
 }

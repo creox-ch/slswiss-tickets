@@ -5,7 +5,7 @@
 > **Процессы платформы (не состояние этого репо) — в handbook:** `creox-ch/handbook` (приватный). Там соглашения по сайтам, передача дизайна, формы и база аудитории, почта, платежи, релизы, закрытые решения. Здесь — только то, что специфично для этого репозитория.
 
 ## Что это
-Билетный стенд SoiLüDi: Next.js 14 (app router) + Supabase + Resend + Payrexx. Прод: https://slswiss-tickets.vercel.app (Vercel team `creox`). Репо `creox-ch/slswiss-tickets` (public). `git push` в `main` → авто-деплой.
+Билетный стенд SoiLüDi: Next.js 15 (app router) + React 19 + Supabase + Resend + Payrexx. Прод: https://slswiss-tickets.vercel.app (Vercel team `creox`). Репо `creox-ch/slswiss-tickets` (public). `git push` в `main` → авто-деплой.
 
 ## Правила работы
 - **Реальность важнее заметок.** При расхождении доков и кода — прав код. Проверяй файлы через Read, не доверяй памяти.

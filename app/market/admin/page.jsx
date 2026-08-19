@@ -51,7 +51,7 @@ export default async function ModerationPage({ searchParams }) {
           ))}
         </nav>
 
-        <ModerationList items={items} supabaseUrl={process.env.SUPABASE_URL} />
+        <ModerationList items={items} status={status} supabaseUrl={process.env.SUPABASE_URL} />
       </div>
     </main>
   );

@@ -34,9 +34,14 @@ export default async function ModerationPage({ searchParams }) {
               <span style={S.count}> · {items.length}</span>
             </h1>
           </div>
-          <a href="/market" style={S.link}>
-            В кабинет →
-          </a>
+          <div style={S.topLinks}>
+            <a href="/market/admin/new" style={S.link}>
+              Завести вещь за продавца →
+            </a>
+            <a href="/market" style={S.link}>
+              В кабинет →
+            </a>
+          </div>
         </div>
 
         <nav style={S.tabs}>
@@ -109,6 +114,7 @@ const S = {
   h1: { margin: '6px 0 0', fontSize: 24 },
   count: { color: '#7A6C93', fontWeight: 500 },
   link: { fontSize: 14, color: '#F5C969', whiteSpace: 'nowrap' },
+  topLinks: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' },
   tabs: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   tab: {
     padding: '8px 14px',

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CONDITIONS, CATEGORIES, formatItemNo, formatPrice } from '../../../lib/market-items';
 import { photoPublicUrl } from '../../../lib/market-photos';
+import PhotoUploader from '../photo-uploader';
 
 /**
  * Очередь модерации: карточка вещи целиком, чтобы решение принималось по тому,
@@ -115,6 +116,18 @@ export default function ModerationList({ items, supabaseUrl }) {
                 От неё зависит гарантия возврата взноса: цена выше рекомендованной её снимает.
               </span>
             </div>
+
+            {!photos.length && (
+              // Пакет «Под ключ»: вещь завёл модератор, фотографировать её тоже
+              // ему. Без единого фото вещь не одобрится, поэтому загрузчик
+              // показываем прямо здесь, а не отправляем человека на другой экран.
+              <div style={S.uploadBox}>
+                <p style={S.uploadHint}>
+                  У вещи нет фотографий — одобрить её нельзя. Если это «Под ключ», загрузи их сам.
+                </p>
+                <PhotoUploader itemId={item.id} initialPhotos={[]} supabaseUrl={supabaseUrl} />
+              </div>
+            )}
 
             {rejecting === item.id ? (
               <div style={S.rejectBox}>
@@ -251,6 +264,15 @@ const S = {
     fontFamily: 'inherit',
   },
   hint: { fontSize: 12, lineHeight: 1.5, color: '#7A6C93', flex: '1 1 220px' },
+  uploadBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    padding: 14,
+    borderRadius: 10,
+    border: '1px dashed rgba(185,139,255,.35)',
+  },
+  uploadHint: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#C3B7D4' },
   empty: { margin: 0, fontSize: 15, color: '#C3B7D4' },
   error: {
     margin: 0,

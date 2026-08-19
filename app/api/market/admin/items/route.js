@@ -96,7 +96,11 @@ export async function POST(req) {
 
     const { data, error: insErr } = await supabaseAdmin
       .from('market_items')
-      .insert({ ...check.value, seller_id: sellerId, status: 'draft' })
+      // Сразу в очередь, а не в черновики: черновик чужой вещи модератору
+      // недоступен целиком, и заведённая им вещь застревала намертво —
+      // отправить её на проверку мог только продавец, который по пакету
+      // «Под ключ» как раз ничего не делает.
+      .insert({ ...check.value, seller_id: sellerId, status: 'pending' })
       .select('id, item_no, status')
       .maybeSingle();
     if (insErr) throw new Error(`supabase insert item: ${insErr.message}`);

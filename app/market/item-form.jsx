@@ -4,16 +4,24 @@ import { useState } from 'react';
 import { CATEGORIES, CONDITIONS, SEXES } from '../../lib/market-items';
 
 /**
- * Форма вещи — общая для создания и правки.
+ * Форма вещи — общая для создания, правки и заведения за продавца.
  *
  * Две кнопки вместо одной: «сохранить» откладывает вещь недозаполненной,
  * «отправить» проверяет строго. Вещь заводят не за один присест — с одной
  * кнопкой человек либо теряет начатое, либо выдумывает описание, лишь бы
  * пройти проверку.
+ *
+ * mode='admin' — пакет «Под ключ»: коробку разбирает и заводит модератор,
+ * поэтому сверху добавляется адрес продавца, а вещь сразу уходит в очередь
+ * на проверку. Поля те же самые: две почти одинаковые формы разъезжаются
+ * через месяц, и продавец с модератором начинают видеть разные вещи.
  */
-export default function ItemForm({ item = null }) {
+export default function ItemForm({ item = null, mode = 'seller' }) {
   const editing = !!item;
+  const forSeller = mode === 'admin';
   const [values, setValues] = useState(() => ({
+    sellerEmail: '',
+    sellerName: '',
     brand: item?.brand || '',
     title: item?.title || '',
     category: item?.category || 'clothes',
@@ -40,14 +48,24 @@ export default function ItemForm({ item = null }) {
     setBusy(true);
     setErrors([]);
     try {
-      const url = editing ? `/api/market/items/${item.id}` : '/api/market/items';
+      const url = forSeller
+        ? '/api/market/admin/items'
+        : editing
+          ? `/api/market/items/${item.id}`
+          : '/api/market/items';
       const res = await fetch(url, {
-        method: editing ? 'PATCH' : 'POST',
+        method: editing && !forSeller ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...values, action }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
+        // Заведённая за продавца вещь сразу попадает в очередь — там же
+        // модератор добавит ей фотографии.
+        if (forSeller) {
+          window.location.href = '/market/admin';
+          return;
+        }
         // Новую вещь уводим на её же экран правки: там загрузка фото, без
         // которого вещь всё равно не уйдёт на проверку. В кабинет отправлять
         // бессмысленно — человек тут же вернётся сюда за фото.
@@ -63,6 +81,27 @@ export default function ItemForm({ item = null }) {
 
   return (
     <form style={S.form} onSubmit={(e) => e.preventDefault()}>
+      {forSeller && (
+        <Row>
+          <Field
+            label="E-mail продавца"
+            hint="Тот, на который оформлен пакет. Опечатка заведёт вещь новому человеку — проверь по списку оплативших"
+          >
+            <input
+              style={S.input}
+              type="email"
+              value={values.sellerEmail}
+              onChange={set('sellerEmail')}
+              placeholder="anna@example.ch"
+              required
+            />
+          </Field>
+          <Field label="Имя продавца" hint="Необязательно — если продавца ещё нет в системе">
+            <input style={S.input} value={values.sellerName} onChange={set('sellerName')} />
+          </Field>
+        </Row>
+      )}
+
       <Field label="Бренд" hint="Как на бирке: Max Mara, Gucci, Sandro">
         <input style={S.input} value={values.brand} onChange={set('brand')} required />
       </Field>
@@ -165,7 +204,11 @@ export default function ItemForm({ item = null }) {
       )}
 
       <div style={S.actions}>
-        {editing ? (
+        {forSeller ? (
+          <button type="button" style={S.gold} disabled={busy} onClick={() => save('save')}>
+            {busy ? 'Завожу…' : 'Завести вещь и добавить фото'}
+          </button>
+        ) : editing ? (
           <>
             <button type="button" style={S.gold} disabled={busy} onClick={() => save('submit')}>
               {busy ? 'Сохраняю…' : 'Отправить на проверку'}
@@ -184,9 +227,11 @@ export default function ItemForm({ item = null }) {
         )}
       </div>
       <p style={S.hint}>
-        {editing
-          ? 'Фото добавляются выше — минимум одно, иначе вещь не уйдёт на проверку.'
-          : 'Сохрани черновик — на следующем экране появится загрузка фото. Без фото вещь на проверку не уйдёт.'}
+        {forSeller
+          ? 'Вещь встанет в очередь на проверку. Фотографии добавишь там же, в карточке — без них одобрить её нельзя.'
+          : editing
+            ? 'Фото добавляются выше — минимум одно, иначе вещь не уйдёт на проверку.'
+            : 'Сохрани черновик — на следующем экране появится загрузка фото. Без фото вещь на проверку не уйдёт.'}
       </p>
     </form>
   );

@@ -5,6 +5,8 @@ import {
   canModerate,
   validateModeration,
   describeModeration,
+  resolveTab,
+  MODERATION_TABS,
 } from '../../lib/market-moderation';
 
 /** Вещь, готовая к публикации: фото, описание, цена. */
@@ -123,5 +125,29 @@ test.describe('проверка решения', () => {
     expect(describeModeration('approve_market')).toContain('маркет');
     expect(describeModeration('reject')).toContain('не приняли');
     expect(describeModeration('чушь')).toBe(null);
+  });
+});
+
+test.describe('вкладки очереди — что модератору вообще доступно', () => {
+  test('чужие черновики через адресную строку не открываются', () => {
+    // Решение по продукту: черновик продавца не показываем никому, пока он
+    // не отправил вещь. ?status=draft это обходил.
+    expect(MODERATION_TABS).not.toContain('draft');
+    expect(resolveTab('draft')).toBe('pending');
+  });
+
+  test('мусор в параметре не рисует пустую вкладку и не роняет запрос', () => {
+    // Было: вкладка «zzz · 0» на странице и 500 в API — то есть «работы нет»
+    // вместо «ты ошибся адресом».
+    expect(resolveTab('zzz')).toBe('pending');
+    expect(resolveTab('')).toBe('pending');
+    expect(resolveTab(undefined)).toBe('pending');
+    expect(resolveTab(null)).toBe('pending');
+  });
+
+  test('нормальные вкладки проходят как есть', () => {
+    for (const tab of MODERATION_TABS) {
+      expect(resolveTab(tab), tab).toBe(tab);
+    }
   });
 });

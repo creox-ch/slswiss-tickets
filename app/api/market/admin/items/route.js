@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../../lib/supabase';
 import { sessionEmailFromRequest, isAdminEmail, normalizeEmail } from '../../../../../lib/market-auth';
 import { validateItem } from '../../../../../lib/market-items';
+import { resolveTab } from '../../../../../lib/market-moderation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,9 @@ export async function GET(req) {
     const { error } = await requireModerator(req);
     if (error) return error;
 
-    const status = new URL(req.url).searchParams.get('status') || 'pending';
+    // Значение из адреса не берём как есть: `?status=draft` отдавал чужие
+    // незаконченные черновики, а произвольное — роняло запрос в 500.
+    const status = resolveTab(new URL(req.url).searchParams.get('status'));
 
     let query = supabaseAdmin
       .from('market_items')

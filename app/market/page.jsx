@@ -51,7 +51,7 @@ export default async function MarketCabinetPage({ searchParams }) {
   const moderator = isAdminEmail(email, process.env.MARKET_ADMIN_EMAILS);
   const seller = await loadSeller(email);
   const packageLabel = seller && seller.package ? describePackage(seller.package, false) : null;
-  const items = await loadItems(seller && seller.id);
+  const { items, failed } = await loadItems(seller && seller.id);
 
   return (
     <Shell>
@@ -77,7 +77,17 @@ export default async function MarketCabinetPage({ searchParams }) {
             + Добавить вещь
           </a>
         </div>
-        <ItemList items={items} />
+        {failed ? (
+          // Пустой список и «список не загрузился» — разные вещи. Раньше тут
+          // писалось «Пока ни одной вещи. Заведи первую», и продавец с десятью
+          // вещами заводил их заново.
+          <p style={S.problem}>
+            Не получилось загрузить твои вещи — это на нашей стороне. Ничего не пропало: обнови
+            страницу через минуту. Если не помогает, напиши нам, и мы разберёмся.
+          </p>
+        ) : (
+          <ItemList items={items} />
+        )}
       </section>
 
       <section style={S.card}>
@@ -129,22 +139,27 @@ async function loadSeller(email) {
   }
 }
 
-/** Вещи продавца. Ошибку тоже глотаем: пустой список лучше сломанной страницы. */
+/**
+ * Вещи продавца. Возвращает {items} либо {failed:true} — и это разные вещи:
+ * пустой кабинет означает «заведи первую», а сбой означает «не показываем то,
+ * что есть». Раньше и то, и другое выглядело одинаково.
+ */
 async function loadItems(sellerId) {
-  if (!sellerId) return [];
+  if (!sellerId) return { items: [], failed: false };
   try {
     const { supabaseAdmin } = await import('../../lib/supabase');
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('market_items')
       .select(
         'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note'
       )
       .eq('seller_id', sellerId)
       .order('created_at', { ascending: false });
-    return data || [];
+    if (error) throw new Error(`supabase select items: ${error.message}`);
+    return { items: data || [], failed: false };
   } catch (e) {
     console.error('[market] items lookup failed', e);
-    return [];
+    return { items: [], failed: true };
   }
 }
 

@@ -12,6 +12,8 @@ import {
   renderRegistrationText,
   renderSpeakerHtml,
   renderSpeakerText,
+  renderMarketInterestHtml,
+  renderMarketInterestText,
   renderOkaziyaHtml,
   renderOkaziyaText,
   renderConfirmHtml,
@@ -218,6 +220,25 @@ export async function POST(req) {
           });
         } catch (spErr) {
           console.error('[forms] speaker email failed', spErr);
+        }
+      }
+
+      // Заявка по вещи из каталога бренд-маркета: бронь, торг или вопрос.
+      // Покупателю письмо нужно не меньше, чем нам: вещь недешёвая, платить
+      // предстоит незнакомому человеку при встрече, а до 19.08 он не получал
+      // ничего — только надпись на экране.
+      if (sub.form_key === 'market-item' && sub.email) {
+        try {
+          await resend().emails.send({
+            from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
+            replyTo: 'info@frankenplatz.ch',
+            to: sub.email,
+            subject: 'Заявка по вещи · FASHION REBORN',
+            html: renderMarketInterestHtml(sub),
+            text: renderMarketInterestText(sub),
+          });
+        } catch (miErr) {
+          console.error('[forms] market interest email failed', miErr);
         }
       }
 

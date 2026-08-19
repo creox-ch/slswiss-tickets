@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CATEGORIES, CONDITIONS, SEXES } from '../../lib/market-items';
+import { CATEGORIES, CONDITIONS, SEXES, sellerEditRule, statusLabel } from '../../lib/market-items';
 
 /**
  * Форма вещи — общая для создания, правки и заведения за продавца.
@@ -19,6 +19,11 @@ import { CATEGORIES, CONDITIONS, SEXES } from '../../lib/market-items';
 export default function ItemForm({ item = null, mode = 'seller' }) {
   const editing = !!item;
   const forSeller = mode === 'admin';
+  // Что можно с вещью в её нынешнем статусе. Модератора это не касается: он
+  // правит на месте, вещь никуда не уходит.
+  const rule = sellerEditRule(item?.status || 'draft');
+  const returnsToQueue = editing && !forSeller && rule.backToPending;
+  const locked = editing && !forSeller && !rule.allowed;
   const [values, setValues] = useState(() => ({
     sellerEmail: '',
     sellerName: '',
@@ -86,6 +91,20 @@ export default function ItemForm({ item = null, mode = 'seller' }) {
 
   return (
     <form style={S.form} onSubmit={(e) => e.preventDefault()}>
+      {locked && (
+        // Раньше форма молчала, предлагала «Отправить на проверку» и отвечала
+        // отказом уже после нажатия. Честнее сказать заранее.
+        <p style={S.locked}>
+          Вещь сейчас «{statusLabel(item.status)}» — поля закрыты. {rule.reason}
+        </p>
+      )}
+      {returnsToQueue && (
+        <p style={S.warn}>
+          Вещь стоит в каталоге. Любая правка вернёт её на проверку, и до нашего одобрения она с
+          витрины пропадёт — обычно это быстро, но знать об этом стоит заранее.
+        </p>
+      )}
+
       {forSeller && !editing && (
         <Row>
           <Field
@@ -213,6 +232,12 @@ export default function ItemForm({ item = null, mode = 'seller' }) {
           <button type="button" style={S.gold} disabled={busy} onClick={() => save('save')}>
             {busy ? 'Сохраняю…' : editing ? 'Сохранить правку' : 'Завести вещь и добавить фото'}
           </button>
+        ) : locked ? null : returnsToQueue ? (
+          // У вещи в каталоге «черновика» уже нет: правка так и так уводит её
+          // на проверку. Две кнопки здесь врали бы обе.
+          <button type="button" style={S.gold} disabled={busy} onClick={() => save('save')}>
+            {busy ? 'Сохраняю…' : 'Сохранить и отправить на проверку'}
+          </button>
         ) : editing ? (
           <>
             <button type="button" style={S.gold} disabled={busy} onClick={() => save('submit')}>
@@ -309,4 +334,24 @@ const S = {
     lineHeight: 1.6,
   },
   hint: { margin: 0, fontSize: 12.5, lineHeight: 1.55, color: '#7A6C93' },
+  warn: {
+    margin: 0,
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(245,201,105,.35)',
+    background: 'rgba(245,201,105,.08)',
+    fontSize: 13.5,
+    lineHeight: 1.55,
+    color: '#F0DDB4',
+  },
+  locked: {
+    margin: 0,
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,138,128,.35)',
+    background: 'rgba(255,138,128,.08)',
+    fontSize: 13.5,
+    lineHeight: 1.55,
+    color: '#F2C8C3',
+  },
 };

@@ -136,6 +136,15 @@ test.describe('номер вещи и цена', () => {
     expect(parsePriceToRappen(450)).toBe(45000);
   });
 
+  test('швейцарский апостроф в тысячах — тоже цена', () => {
+    // Так пишут цену в Швейцарии, и продавец на живом прогоне ввёл именно так:
+    // `1 200` проходило, а `1'200` давало «Укажи цену числом».
+    expect(parsePriceToRappen("1'200")).toBe(120000);
+    expect(parsePriceToRappen('1’200')).toBe(120000); // типографский апостроф из телефона
+    expect(parsePriceToRappen("12'500.50")).toBe(1250050);
+    expect(parsePriceToRappen("1'234'567")).toBe(123456700);
+  });
+
   test('не-цена → null (роут ответит 400, а не запишет мусор)', () => {
     expect(parsePriceToRappen('дорого')).toBe(null);
     expect(parsePriceToRappen('450.555')).toBe(null);

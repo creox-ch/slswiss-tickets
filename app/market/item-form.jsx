@@ -288,7 +288,9 @@ const S = {
   row: { display: 'flex', gap: 14, flexWrap: 'wrap' },
   field: { display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 200px' },
   label: { fontSize: 13.5, color: '#C3B7D4' },
-  small: { fontSize: 12, lineHeight: 1.5, color: '#7A6C93' },
+  // display:block обязателен: <small> инлайновый, и подсказка про гарантию
+  // возврата шла впритык к подписи чекбокса — «…подлинностиЭто условие».
+  small: { display: 'block', marginTop: 4, fontSize: 12, lineHeight: 1.5, color: '#7A6C93' },
   input: {
     width: '100%',
     boxSizing: 'border-box',

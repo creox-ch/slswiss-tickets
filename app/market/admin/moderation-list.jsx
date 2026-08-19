@@ -12,18 +12,21 @@ import { photoPublicUrl } from '../../../lib/market-photos';
  * отправляется. Продавцу уходит письмо с этой причиной, и «нам не подошло»
  * там будет выглядеть издевательством.
  */
-export default function ModerationList({ items, supabaseUrl }) {
+export default function ModerationList({ items, status = 'pending', supabaseUrl }) {
   const [rows, setRows] = useState(items);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
   const [rejecting, setRejecting] = useState(null); // id вещи, у которой открыт отказ
   const [note, setNote] = useState('');
   const [price, setPrice] = useState({});
+  const [saved, setSaved] = useState(null); // id вещи, у которой только что сохранили цену
 
   async function act(id, action, extra = {}) {
     if (busyId) return;
+    const before = rows.find((r) => r.id === id);
     setBusyId(id);
     setError('');
+    setSaved(null);
     try {
       const res = await fetch(`/api/market/admin/items/${id}`, {
         method: 'PATCH',
@@ -32,8 +35,18 @@ export default function ModerationList({ items, supabaseUrl }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
-        // Вещь уходит из очереди — убираем её из списка, не дёргая страницу.
-        setRows((prev) => prev.filter((r) => r.id !== id));
+        const next = data.item || null;
+        // Из очереди вещь убираем, только если статус действительно сменился, —
+        // и только на вкладке, которая отбирает по статусу. «Сохранить цену»
+        // статус не трогает: раньше карточка всё равно исчезала, и вещь молча
+        // выпадала из виду непроверенной.
+        const left = next && before ? next.status !== before.status : true;
+        if (left && status !== 'all') {
+          setRows((prev) => prev.filter((r) => r.id !== id));
+        } else if (next) {
+          setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...next } : r)));
+          if (!left) setSaved(id);
+        }
         setRejecting(null);
         setNote('');
       } else {
@@ -111,6 +124,7 @@ export default function ModerationList({ items, supabaseUrl }) {
               >
                 Сохранить цену
               </button>
+              {saved === item.id && <span style={S.saved}>Цена сохранена</span>}
               <span style={S.hint}>
                 От неё зависит гарантия возврата взноса: цена выше рекомендованной её снимает.
               </span>
@@ -136,7 +150,14 @@ export default function ModerationList({ items, supabaseUrl }) {
                   >
                     Отправить отказ
                   </button>
-                  <button type="button" style={S.small} onClick={() => setRejecting(null)}>
+                  <button
+                    type="button"
+                    style={S.small}
+                    onClick={() => {
+                      setRejecting(null);
+                      setNote('');
+                    }}
+                  >
                     Отмена
                   </button>
                 </div>
@@ -159,7 +180,17 @@ export default function ModerationList({ items, supabaseUrl }) {
                 >
                   Только в каталог
                 </button>
-                <button type="button" style={S.small} disabled={busy} onClick={() => setRejecting(item.id)}>
+                <button
+                  type="button"
+                  style={S.small}
+                  disabled={busy}
+                  onClick={() => {
+                    // Чистим текст на открытии: причина от предыдущей вещи
+                    // уходила продавцу этой — и он видел её сразу в почте.
+                    setNote('');
+                    setRejecting(item.id);
+                  }}
+                >
                   Не берём
                 </button>
               </div>
@@ -251,6 +282,9 @@ const S = {
     fontFamily: 'inherit',
   },
   hint: { fontSize: 12, lineHeight: 1.5, color: '#7A6C93', flex: '1 1 220px' },
+  // Раньше подтверждением служило исчезновение карточки. Теперь она остаётся,
+  // и без явного слова непонятно, сохранилось ли.
+  saved: { fontSize: 12, color: '#7BC49A', whiteSpace: 'nowrap' },
   empty: { margin: 0, fontSize: 15, color: '#C3B7D4' },
   error: {
     margin: 0,

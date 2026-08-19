@@ -18,8 +18,11 @@ import {
   canPublish,
   resolveAction,
   canApply,
+  sellerEditRule,
   coveredByRefundGuarantee,
 } from '../../lib/market-items';
+import fs from 'fs';
+import path from 'path';
 
 test.describe('статусы вещи', () => {
   test('словарь статусов покрывает весь путь вещи', () => {
@@ -338,5 +341,69 @@ test.describe('словари', () => {
     expect(Object.keys(CATEGORIES)).toEqual(['clothes', 'shoes', 'bags', 'acc']);
     expect(Object.keys(CONDITIONS)).toEqual(['new', 'ideal', 'good', 'fair']);
     expect(Object.keys(SEXES)).toEqual(['f', 'm', 'u', 'k']);
+  });
+});
+
+test.describe('правка вещи продавцом — «свой не может лишнего»', () => {
+  test('пока вещь не опубликована, правка свободна и на проверку не отправляет', () => {
+    for (const status of ['draft', 'pending', 'rejected', 'withdrawn', 'returned']) {
+      const rule = sellerEditRule(status);
+      expect(rule.allowed, status).toBe(true);
+      expect(rule.backToPending, status).toBe(false);
+    }
+  });
+
+  test('правка опубликованной вещи возвращает её на повторную проверку', () => {
+    // Одобряли конкретную вещь с конкретным описанием. Без этого правила
+    // продавец менял бренд сразу после одобрения, и право отбора (AGB 3.6)
+    // обходилось молча.
+    for (const status of ['approved_online', 'approved_market']) {
+      const rule = sellerEditRule(status);
+      expect(rule.allowed, status).toBe(true);
+      expect(rule.backToPending, status).toBe(true);
+    }
+    expect(canApply('approved_online', 'pending')).toBe(true);
+    expect(canApply('approved_market', 'pending')).toBe(true);
+  });
+
+  test('у забронированной и проданной поля заперты, и человеку сказано почему', () => {
+    for (const status of ['reserved', 'sold']) {
+      const rule = sellerEditRule(status);
+      expect(rule.allowed, status).toBe(false);
+      expect(rule.reason, status).toBeTruthy();
+      // Служебное имя статуса в лицо продавцу не показываем.
+      expect(rule.reason).not.toContain(status);
+    }
+    // Цена проданной вещи — основание для счёта на комиссию: её не должна
+    // менять та сторона, которая по счёту платит.
+    expect(sellerEditRule('sold').reason).toContain('комисси');
+  });
+
+  test('неизвестный статус закрыт, а не открыт по умолчанию', () => {
+    const rule = sellerEditRule('чего-то новенькое');
+    expect(rule.allowed).toBe(false);
+    expect(rule.reason).toBeTruthy();
+  });
+
+  test('каждый статус вещи имеет правило правки', () => {
+    // Заводя новый статус, легко забыть про правку — и он окажется либо
+    // молча открытым, либо непонятно закрытым.
+    for (const status of ITEM_STATUSES) {
+      const rule = sellerEditRule(status);
+      expect(typeof rule.allowed, status).toBe('boolean');
+      if (!rule.allowed) expect(rule.reason, status).toBeTruthy();
+    }
+  });
+
+  test('роуты правки и фото действительно спрашивают правило', () => {
+    // Правило бесполезно, если роут его не зовёт: ровно так Р1 и дожил
+    // до прода — проверка была, но статуса не касалась.
+    const root = path.join(process.cwd(), 'app', 'api', 'market', 'items', '[id]');
+    const item = fs.readFileSync(path.join(root, 'route.js'), 'utf8');
+    const photos = fs.readFileSync(path.join(root, 'photos', 'route.js'), 'utf8');
+    expect(item).toContain('sellerEditRule');
+    expect(photos).toContain('sellerEditRule');
+    // И удаление последнего фото у опубликованной вещи не проходит.
+    expect(photos).toContain('MIN_PHOTOS');
   });
 });

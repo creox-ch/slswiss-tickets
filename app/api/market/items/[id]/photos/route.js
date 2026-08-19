@@ -10,7 +10,7 @@ import {
   belongsToItem,
   sniffImageMime,
 } from '../../../../../../lib/market-photos';
-import { MAX_PHOTOS } from '../../../../../../lib/market-items';
+import { MAX_PHOTOS, MIN_PHOTOS, sellerEditRule } from '../../../../../../lib/market-items';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,6 +63,13 @@ export async function POST(req, { params }) {
     const { id } = await params;
     const { item, error } = await ownedItem(req, id);
     if (error) return error;
+
+    // У забронированной и проданной вещи фото трогать нельзя: покупатель уже
+    // видел именно эту карточку.
+    const rule = sellerEditRule(item.status);
+    if (!rule.allowed) {
+      return NextResponse.json({ ok: false, error: rule.reason }, { status: 409 });
+    }
 
     const form = await req.formData().catch(() => null);
     const file = form ? form.get('file') : null;
@@ -134,8 +141,27 @@ export async function DELETE(req, { params }) {
       return NextResponse.json({ ok: false, error: 'Это фото не от этой вещи.' }, { status: 400 });
     }
 
+    const rule = sellerEditRule(item.status);
+    if (!rule.allowed) {
+      return NextResponse.json({ ok: false, error: rule.reason }, { status: 409 });
+    }
+
     const photos = Array.isArray(item.photos) ? item.photos : [];
     const next = photos.filter((p) => p !== path);
+
+    // У опубликованной вещи последнюю фотографию не отдаём: карточка в каталоге
+    // осталась бы с подписью «фото готовится» — витрина деградирует молча,
+    // и заметит это только покупатель.
+    if (rule.backToPending && next.length < MIN_PHOTOS) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Это единственное фото вещи, которая стоит в каталоге. Сначала загрузи другое — карточка без фото никому не покажется.',
+        },
+        { status: 409 }
+      );
+    }
 
     const { error: delErr } = await supabaseAdmin.storage.from(PHOTO_BUCKET).remove([path]);
     if (delErr) throw new Error(`storage remove: ${delErr.message}`);

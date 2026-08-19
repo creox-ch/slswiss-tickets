@@ -6,6 +6,7 @@ import {
   canPublish,
   resolveAction,
   canApply,
+  sellerEditRule,
 } from '../../../../../lib/market-items';
 import { PHOTO_BUCKET } from '../../../../../lib/market-photos';
 
@@ -85,9 +86,20 @@ export async function PATCH(req, { params }) {
     const patch = {};
     // Поля правим, только если их прислали: PATCH без полей — это чистая
     // смена статуса, и затирать описание пустотой в этом случае нельзя.
+    const editsFields =
+      body.brand !== undefined || body.title !== undefined || body.price !== undefined;
+
+    // Правка зависит от статуса вещи. Раньше не зависела вовсе: продавец правил
+    // бренд и цену у вещи, уже стоящей в каталоге, и даже у проданной — то есть
+    // обходил модерацию и мог задним числом сдвинуть основание для комиссии.
+    const rule = sellerEditRule(item.status);
+    if (editsFields && !rule.allowed) {
+      return NextResponse.json({ ok: false, error: rule.reason }, { status: 409 });
+    }
+
     // Проверяем НЕ строго: строгую проверку делает canPublish ниже, по тому,
     // что реально лежит в базе, — фото форма не присылает.
-    if (body.brand !== undefined || body.title !== undefined || body.price !== undefined) {
+    if (editsFields) {
       const check = validateItem(body, { forPublication: false });
       if (!check.ok) return NextResponse.json({ ok: false, errors: check.errors }, { status: 400 });
       Object.assign(patch, check.value);
@@ -101,6 +113,9 @@ export async function PATCH(req, { params }) {
     }
 
     if (target) patch.status = target;
+    // Правка опубликованной вещи возвращает её на повторную проверку: в каталоге
+    // должна стоять та вещь, которую одобряли, а не то, чем её заменили после.
+    if (editsFields && rule.backToPending && !target) patch.status = 'pending';
     patch.updated_at = new Date().toISOString();
 
     const { data, error: updErr } = await supabaseAdmin

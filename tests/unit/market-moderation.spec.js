@@ -5,6 +5,8 @@ import {
   canModerate,
   validateModeration,
   describeModeration,
+  resolveTab,
+  MODERATION_TABS,
 } from '../../lib/market-moderation';
 
 /** Вещь, готовая к публикации: фото, описание, цена. */
@@ -18,8 +20,19 @@ const ready = {
 };
 
 test.describe('решения модератора', () => {
-  test('четыре решения, и ничего сверх них', () => {
-    expect(MODERATION_ACTIONS).toEqual(['approve_online', 'approve_market', 'reject', 'price']);
+  test('пять действий, и ничего сверх них', () => {
+    // Список закрытый намеренно: новое действие модератора — это новые права,
+    // и появляться оно должно осознанно, вместе с правкой этого теста. 19.08
+    // так добавилось `edit`: по пакету «Под ключ» продаём мы, описание пишет
+    // модератор, и поправить свою опечатку он должен сам.
+    expect(MODERATION_ACTIONS).toEqual([
+      'approve_online',
+      'approve_market',
+      'reject',
+      'price',
+      'edit',
+    ]);
+    expect(resolveModeration('edit')).toEqual({ known: true, target: null });
     expect(resolveModeration('approve_market')).toEqual({ known: true, target: 'approved_market' });
     expect(resolveModeration('price')).toEqual({ known: true, target: null });
     expect(resolveModeration('delete')).toEqual({ known: false, target: null });
@@ -112,5 +125,29 @@ test.describe('проверка решения', () => {
     expect(describeModeration('approve_market')).toContain('маркет');
     expect(describeModeration('reject')).toContain('не приняли');
     expect(describeModeration('чушь')).toBe(null);
+  });
+});
+
+test.describe('вкладки очереди — что модератору вообще доступно', () => {
+  test('чужие черновики через адресную строку не открываются', () => {
+    // Решение по продукту: черновик продавца не показываем никому, пока он
+    // не отправил вещь. ?status=draft это обходил.
+    expect(MODERATION_TABS).not.toContain('draft');
+    expect(resolveTab('draft')).toBe('pending');
+  });
+
+  test('мусор в параметре не рисует пустую вкладку и не роняет запрос', () => {
+    // Было: вкладка «zzz · 0» на странице и 500 в API — то есть «работы нет»
+    // вместо «ты ошибся адресом».
+    expect(resolveTab('zzz')).toBe('pending');
+    expect(resolveTab('')).toBe('pending');
+    expect(resolveTab(undefined)).toBe('pending');
+    expect(resolveTab(null)).toBe('pending');
+  });
+
+  test('нормальные вкладки проходят как есть', () => {
+    for (const tab of MODERATION_TABS) {
+      expect(resolveTab(tab), tab).toBe(tab);
+    }
   });
 });

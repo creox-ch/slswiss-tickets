@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CONDITIONS, CATEGORIES, formatItemNo, formatPrice } from '../../../lib/market-items';
 import { photoPublicUrl } from '../../../lib/market-photos';
+import PhotoUploader from '../photo-uploader';
 
 /**
  * Очередь модерации: карточка вещи целиком, чтобы решение принималось по тому,
@@ -130,6 +131,18 @@ export default function ModerationList({ items, status = 'pending', supabaseUrl 
               </span>
             </div>
 
+            {!photos.length && (
+              // Пакет «Под ключ»: вещь завёл модератор, фотографировать её тоже
+              // ему. Без единого фото вещь не одобрится, поэтому загрузчик
+              // показываем прямо здесь, а не отправляем человека на другой экран.
+              <div style={S.uploadBox}>
+                <p style={S.uploadHint}>
+                  У вещи нет фотографий — одобрить её нельзя. Если это «Под ключ», загрузи их сам.
+                </p>
+                <PhotoUploader itemId={item.id} initialPhotos={[]} supabaseUrl={supabaseUrl} />
+              </div>
+            )}
+
             {rejecting === item.id ? (
               <div style={S.rejectBox}>
                 <label style={S.label}>
@@ -193,6 +206,11 @@ export default function ModerationList({ items, status = 'pending', supabaseUrl 
                 >
                   Не берём
                 </button>
+                {/* Описания на нас (ТЗ §2, шаг 02), а по «Под ключ» мы ещё и
+                    заводим вещь — свою опечатку модератор правит сам. */}
+                <a href={`/market/admin/items/${item.id}/edit`} style={S.editLink}>
+                  Править
+                </a>
               </div>
             )}
           </article>
@@ -285,6 +303,22 @@ const S = {
   // Раньше подтверждением служило исчезновение карточки. Теперь она остаётся,
   // и без явного слова непонятно, сохранилось ли.
   saved: { fontSize: 12, color: '#7BC49A', whiteSpace: 'nowrap' },
+  uploadBox: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    padding: 14,
+    borderRadius: 10,
+    border: '1px dashed rgba(185,139,255,.35)',
+  },
+  uploadHint: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#C3B7D4' },
+  editLink: {
+    fontSize: 13.5,
+    color: '#B98BFF',
+    textDecoration: 'none',
+    alignSelf: 'center',
+    whiteSpace: 'nowrap',
+  },
   empty: { margin: 0, fontSize: 15, color: '#C3B7D4' },
   error: {
     margin: 0,

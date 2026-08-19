@@ -1,19 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { CONDITIONS, formatItemNo, formatPrice } from '../../lib/market-items';
+import { CONDITIONS, formatItemNo, formatPrice, statusLabel } from '../../lib/market-items';
 
-/** Как называть статус продавцу: он не должен угадывать, что значит approved_online. */
-const STATUS_LABEL = {
-  draft: { text: 'Черновик', tone: 'muted' },
-  pending: { text: 'На проверке', tone: 'wait' },
-  approved_online: { text: 'В каталоге', tone: 'ok' },
-  approved_market: { text: 'В каталоге и на маркете', tone: 'ok' },
-  rejected: { text: 'Не приняли', tone: 'bad' },
-  reserved: { text: 'Забронирована', tone: 'wait' },
-  sold: { text: 'Продана', tone: 'ok' },
-  withdrawn: { text: 'Снята', tone: 'muted' },
-  returned: { text: 'Возвращена', tone: 'muted' },
+/**
+ * Как называть статус продавцу: он не должен угадывать, что значит
+ * approved_online. Текст берём из общего словаря — он же уходит в ошибки
+ * роутов, и расходиться этим двум местам нельзя. Здесь остаётся только цвет.
+ */
+const STATUS_TONE = {
+  draft: 'muted',
+  pending: 'wait',
+  approved_online: 'ok',
+  approved_market: 'ok',
+  rejected: 'bad',
+  reserved: 'wait',
+  sold: 'ok',
+  withdrawn: 'muted',
+  returned: 'muted',
 };
 
 export default function ItemList({ items }) {
@@ -57,7 +61,7 @@ export default function ItemList({ items }) {
     <div style={S.wrap}>
       {error && <p style={S.error}>{error}</p>}
       {items.map((item) => {
-        const label = STATUS_LABEL[item.status] || { text: item.status, tone: 'muted' };
+        const label = { text: statusLabel(item.status), tone: STATUS_TONE[item.status] || 'muted' };
         const busy = busyId === item.id;
         return (
           <article key={item.id} style={S.card}>

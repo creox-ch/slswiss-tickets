@@ -7,6 +7,7 @@ import {
   resolveAction,
   canApply,
   sellerEditRule,
+  statusLabel,
 } from '../../../../../lib/market-items';
 import { PHOTO_BUCKET } from '../../../../../lib/market-photos';
 
@@ -77,8 +78,10 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ ok: false, error: 'Неизвестное действие.' }, { status: 400 });
     }
     if (!canApply(item.status, target)) {
+      // Раньше здесь показывалось служебное имя статуса — «Из статуса
+      // „approved_online“ так нельзя». Продавец таких слов не заводил.
       return NextResponse.json(
-        { ok: false, error: `Из статуса «${item.status}» так нельзя.` },
+        { ok: false, error: `Вещь сейчас «${statusLabel(item.status)}» — так с ней нельзя.` },
         { status: 409 }
       );
     }

@@ -19,6 +19,7 @@ import {
   resolveAction,
   canApply,
   sellerEditRule,
+  statusLabel,
   coveredByRefundGuarantee,
 } from '../../lib/market-items';
 import fs from 'fs';
@@ -414,5 +415,43 @@ test.describe('правка вещи продавцом — «свой не мо
     expect(photos).toContain('sellerEditRule');
     // И удаление последнего фото у опубликованной вещи не проходит.
     expect(photos).toContain('MIN_PHOTOS');
+  });
+});
+
+test.describe('статус словами — служебные имена наружу не показываем', () => {
+  test('у каждого статуса есть человеческое название', () => {
+    for (const status of ITEM_STATUSES) {
+      const label = statusLabel(status);
+      expect(label, status).toBeTruthy();
+      // Ни одно название не должно быть самим ключом: продавец не заводил
+      // слово approved_online и понимать его не обязан.
+      expect(label, status).not.toBe(status);
+    }
+  });
+
+  test('неизвестный статус не превращается в мусор на экране', () => {
+    expect(statusLabel('чего-то новенькое')).toBe('эта вещь');
+    expect(statusLabel(undefined)).toBe('эта вещь');
+  });
+
+  test('роут правки больше не показывает служебное имя статуса', () => {
+    // Было: «Из статуса „approved_online“ так нельзя» — прямо в лицо продавцу.
+    const route = fs.readFileSync(
+      path.join(process.cwd(), 'app', 'api', 'market', 'items', '[id]', 'route.js'),
+      'utf8'
+    );
+    expect(route).not.toContain('Из статуса «${item.status}»');
+    expect(route).toContain('statusLabel(item.status)');
+  });
+
+  test('список вещей и ошибки роутов берут названия из одного словаря', () => {
+    // Два словаря разъезжаются: в списке «В каталоге», в ошибке «Опубликована»,
+    // и человек считает это разными состояниями.
+    const list = fs.readFileSync(
+      path.join(process.cwd(), 'app', 'market', 'item-list.jsx'),
+      'utf8'
+    );
+    expect(list).toContain('statusLabel');
+    expect(list).not.toContain("draft: { text:");
   });
 });

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import ModerationList from './moderation-list';
 import { SESSION_COOKIE, verifySession, isAdminEmail } from '../../../lib/market-auth';
+import { resolveTab } from '../../../lib/market-moderation';
 
 export const metadata = { title: 'Модерация — Frankenplatz Market' };
 export const dynamic = 'force-dynamic';
@@ -15,13 +16,16 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ModerationPage({ searchParams }) {
   const params = (await searchParams) || {};
-  const status = typeof params.status === 'string' ? params.status : 'pending';
+  // Значение из адресной строки не берём как есть: `?status=draft` показывал
+  // чужие черновики, а произвольное значение рисовало пустую вкладку вместо
+  // ошибки.
+  const status = resolveTab(typeof params.status === 'string' ? params.status : null);
 
   const jar = await cookies();
   const email = verifySession(jar.get(SESSION_COOKIE)?.value, process.env.MARKET_SESSION_SECRET);
   if (!email || !isAdminEmail(email, process.env.MARKET_ADMIN_EMAILS)) notFound();
 
-  const items = await loadItems(status);
+  const { items, failed } = await loadItems(status);
 
   return (
     <main style={S.page}>
@@ -31,12 +35,17 @@ export default async function ModerationPage({ searchParams }) {
             <p style={S.eyebrow}>Модерация</p>
             <h1 style={S.h1}>
               {TAB_LABEL[status] || status}
-              <span style={S.count}> · {items.length}</span>
+              {!failed && <span style={S.count}> · {items.length}</span>}
             </h1>
           </div>
-          <a href="/market" style={S.link}>
-            В кабинет →
-          </a>
+          <div style={S.topLinks}>
+            <a href="/market/admin/new" style={S.link}>
+              Завести вещь за продавца →
+            </a>
+            <a href="/market" style={S.link}>
+              В кабинет →
+            </a>
+          </div>
         </div>
 
         <nav style={S.tabs}>
@@ -51,7 +60,14 @@ export default async function ModerationPage({ searchParams }) {
           ))}
         </nav>
 
-        <ModerationList items={items} status={status} supabaseUrl={process.env.SUPABASE_URL} />
+        {failed ? (
+          <p style={S.failed}>
+            Очередь не загрузилась — это на нашей стороне, а не «вещей нет». Обнови страницу через
+            минуту; если не поможет, посмотри логи и напиши разработчику.
+          </p>
+        ) : (
+          <ModerationList items={items} status={status} supabaseUrl={process.env.SUPABASE_URL} />
+        )}
       </div>
     </main>
   );
@@ -65,8 +81,17 @@ const TAB_LABEL = {
   all: 'Все',
 };
 
+/**
+ * Очередь из базы.
+ *
+ * Возвращает {items} либо {failed:true} — и это разные вещи. Раньше при любом
+ * сбое отдавался пустой список, и страница писала «все вещи разобраны»:
+ * модератор уходил, решив, что работы нет, а вещи ждали письма.
+ */
 async function loadItems(status) {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return { items: [], failed: true };
+  }
   try {
     const { supabaseAdmin } = await import('../../../lib/supabase');
     let query = supabaseAdmin
@@ -77,21 +102,23 @@ async function loadItems(status) {
       .order('created_at', { ascending: true });
     if (status !== 'all') query = query.eq('status', status);
 
-    const { data: items } = await query;
+    const { data: items, error } = await query;
+    if (error) throw new Error(`supabase select items: ${error.message}`);
     const rows = items || [];
 
     const ids = [...new Set(rows.map((i) => i.seller_id).filter(Boolean))];
-    if (!ids.length) return rows;
+    if (!ids.length) return { items: rows, failed: false };
 
-    const { data: sellers } = await supabaseAdmin
+    const { data: sellers, error: sellersErr } = await supabaseAdmin
       .from('market_sellers')
       .select('id, email, name, package')
       .in('id', ids);
+    if (sellersErr) throw new Error(`supabase select sellers: ${sellersErr.message}`);
     const byId = Object.fromEntries((sellers || []).map((s) => [s.id, s]));
-    return rows.map((i) => ({ ...i, seller: byId[i.seller_id] || null }));
+    return { items: rows.map((i) => ({ ...i, seller: byId[i.seller_id] || null })), failed: false };
   } catch (e) {
     console.error('[market/admin] load failed', e);
-    return [];
+    return { items: [], failed: true };
   }
 }
 
@@ -109,6 +136,17 @@ const S = {
   h1: { margin: '6px 0 0', fontSize: 24 },
   count: { color: '#7A6C93', fontWeight: 500 },
   link: { fontSize: 14, color: '#F5C969', whiteSpace: 'nowrap' },
+  topLinks: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' },
+  failed: {
+    margin: 0,
+    padding: '14px 16px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,138,128,.35)',
+    background: 'rgba(255,138,128,.08)',
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: '#F2C8C3',
+  },
   tabs: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   tab: {
     padding: '8px 14px',

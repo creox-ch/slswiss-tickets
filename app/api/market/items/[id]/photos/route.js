@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseAdmin } from '../../../../../../lib/supabase';
-import { sessionEmailFromRequest } from '../../../../../../lib/market-auth';
+import { sessionEmailFromRequest, isAdminEmail } from '../../../../../../lib/market-auth';
 import {
   PHOTO_BUCKET,
   checkPhoto,
@@ -30,10 +30,31 @@ function unauthorized() {
   return NextResponse.json({ ok: false, error: 'Нужно войти в кабинет.' }, { status: 401 });
 }
 
-/** Вещь текущего продавца или ответ с ошибкой. */
+/**
+ * Вещь, с фото которой этому человеку можно работать, — или ответ с ошибкой.
+ *
+ * Обычно это своя вещь. Но по пакету «Под ключ» коробку разбирает организатор,
+ * и фотографии грузит он же: продавец по условиям пакета не делает ничего.
+ * Поэтому модератор работает с фото любой вещи — правила по статусу
+ * (проданное и забронированное не трогаем) остаются общими для обоих.
+ */
 async function ownedItem(req, id) {
   const email = sessionEmailFromRequest(req, process.env.MARKET_SESSION_SECRET);
   if (!email) return { error: unauthorized() };
+
+  const { data: item, error: itemErr } = await supabaseAdmin
+    .from('market_items')
+    .select('id, seller_id, photos, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (itemErr) throw new Error(`supabase select item: ${itemErr.message}`);
+
+  const notFound = {
+    error: NextResponse.json({ ok: false, error: 'Вещь не найдена.' }, { status: 404 }),
+  };
+  if (!item) return notFound;
+
+  if (isAdminEmail(email, process.env.MARKET_ADMIN_EMAILS)) return { item, moderator: true };
 
   const { data: seller, error: sellerErr } = await supabaseAdmin
     .from('market_sellers')
@@ -43,16 +64,10 @@ async function ownedItem(req, id) {
   if (sellerErr) throw new Error(`supabase select seller: ${sellerErr.message}`);
   if (!seller) return { error: unauthorized() };
 
-  const { data: item, error: itemErr } = await supabaseAdmin
-    .from('market_items')
-    .select('id, seller_id, photos, status')
-    .eq('id', id)
-    .maybeSingle();
-  if (itemErr) throw new Error(`supabase select item: ${itemErr.message}`);
-  if (!item || item.seller_id !== seller.id) {
-    return { error: NextResponse.json({ ok: false, error: 'Вещь не найдена.' }, { status: 404 }) };
-  }
-  return { item };
+  // Чужая вещь и несуществующая отвечают одинаково: по разнице ответов можно
+  // было бы перебором узнать, что у соседа в каталоге.
+  if (item.seller_id !== seller.id) return notFound;
+  return { item, moderator: false };
 }
 
 export async function POST(req, { params }) {

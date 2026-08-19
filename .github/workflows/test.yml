@@ -32,10 +32,34 @@ jobs:
       - name: Build (ловит синтакс-ошибки всех роутов без env)
         run: npm run build
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+      # Браузер кладём в кэш: скачивание — единственный шаг здесь, который
+      # ходит наружу, и 19.08 он дважды подвесил джоб до лимита в 20 минут
+      # (осиротевшим процессом в логе остался playwright install). Кэш
+      # убирает причину на всех последующих прогонах.
+      - name: Кэш браузера Playwright
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # Библиотеки и сам браузер — разными шагами: apt и скачивание это
+      # разные источники зависаний, и в общем шаге непонятно, что встало.
+      # timeout-minutes, чтобы шаг падал быстро и внятно, а не съедал лимит
+      # всего джоба: тогда это выглядит как «зависли тесты», хотя тесты
+      # даже не начинались.
+      - name: Системные библиотеки для браузера
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 6
+        run: npx playwright install-deps chromium
+
+      - name: Установка браузера
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 6
+        run: npx playwright install chromium
 
       - name: Run tests (unit + e2e)
+        timeout-minutes: 12
         run: npx playwright test
 
       - uses: actions/upload-artifact@v7

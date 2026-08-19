@@ -94,13 +94,23 @@ export async function POST(req) {
 
     const sellerId = await findOrCreateSeller(sellerEmail, body.sellerName);
 
+    // Приоритет в каталоге обещан пакетом «Под ключ» (249 CHF). Поле в базе было
+    // с самого начала, но не проставлялось нигде — обещание висело пустым.
+    const { data: seller, error: pkgErr } = await supabaseAdmin
+      .from('market_sellers')
+      .select('package')
+      .eq('id', sellerId)
+      .maybeSingle();
+    if (pkgErr) throw new Error(`supabase select package: ${pkgErr.message}`);
+    const priority = seller?.package === 'turnkey';
+
     const { data, error: insErr } = await supabaseAdmin
       .from('market_items')
       // Сразу в очередь, а не в черновики: черновик чужой вещи модератору
       // недоступен целиком, и заведённая им вещь застревала намертво —
       // отправить её на проверку мог только продавец, который по пакету
       // «Под ключ» как раз ничего не делает.
-      .insert({ ...check.value, seller_id: sellerId, status: 'pending' })
+      .insert({ ...check.value, seller_id: sellerId, status: 'pending', priority })
       .select('id, item_no, status')
       .maybeSingle();
     if (insErr) throw new Error(`supabase insert item: ${insErr.message}`);

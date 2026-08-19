@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../../../lib/supabase';
 import { sessionEmailFromRequest, isAdminEmail } from '../../../../../../lib/market-auth';
 import { validateModeration, canModerate, resolveModeration } from '../../../../../../lib/market-moderation';
+import { validateItem, sellerEditRule } from '../../../../../../lib/market-items';
 import { sendMarketDecisionEmail } from '../../../../../../lib/ticket';
 
 export const runtime = 'nodejs';
@@ -51,6 +52,21 @@ export async function PATCH(req, { params }) {
 
     const check = validateModeration(body, item);
     if (!check.ok) return NextResponse.json({ ok: false, errors: check.errors }, { status: 400 });
+
+    // Правка полей модератором. Статус не меняется: он и есть проверяющий, и
+    // отправлять вещь на повторную проверку к самому себе — театр. Границы те
+    // же, что у продавца: у проданной и забронированной поля заперты.
+    if (body.action === 'edit') {
+      const rule = sellerEditRule(item.status);
+      if (!rule.allowed) {
+        return NextResponse.json({ ok: false, error: rule.reason }, { status: 409 });
+      }
+      const fields = validateItem(body, { forPublication: false });
+      if (!fields.ok) {
+        return NextResponse.json({ ok: false, errors: fields.errors }, { status: 400 });
+      }
+      Object.assign(check.patch, fields.value);
+    }
 
     const { data: updated, error: updErr } = await supabaseAdmin
       .from('market_items')

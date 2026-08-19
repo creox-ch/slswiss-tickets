@@ -175,6 +175,11 @@ export default function ModerationList({ items, supabaseUrl }) {
                 <button type="button" style={S.small} disabled={busy} onClick={() => setRejecting(item.id)}>
                   Не берём
                 </button>
+                {/* Описания на нас (ТЗ §2, шаг 02), а по «Под ключ» мы ещё и
+                    заводим вещь — свою опечатку модератор правит сам. */}
+                <a href={`/market/admin/items/${item.id}/edit`} style={S.editLink}>
+                  Править
+                </a>
               </div>
             )}
           </article>
@@ -273,6 +278,13 @@ const S = {
     border: '1px dashed rgba(185,139,255,.35)',
   },
   uploadHint: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#C3B7D4' },
+  editLink: {
+    fontSize: 13.5,
+    color: '#B98BFF',
+    textDecoration: 'none',
+    alignSelf: 'center',
+    whiteSpace: 'nowrap',
+  },
   empty: { margin: 0, fontSize: 15, color: '#C3B7D4' },
   error: {
     margin: 0,

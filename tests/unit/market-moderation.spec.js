@@ -18,8 +18,19 @@ const ready = {
 };
 
 test.describe('решения модератора', () => {
-  test('четыре решения, и ничего сверх них', () => {
-    expect(MODERATION_ACTIONS).toEqual(['approve_online', 'approve_market', 'reject', 'price']);
+  test('пять действий, и ничего сверх них', () => {
+    // Список закрытый намеренно: новое действие модератора — это новые права,
+    // и появляться оно должно осознанно, вместе с правкой этого теста. 19.08
+    // так добавилось `edit`: по пакету «Под ключ» продаём мы, описание пишет
+    // модератор, и поправить свою опечатку он должен сам.
+    expect(MODERATION_ACTIONS).toEqual([
+      'approve_online',
+      'approve_market',
+      'reject',
+      'price',
+      'edit',
+    ]);
+    expect(resolveModeration('edit')).toEqual({ known: true, target: null });
     expect(resolveModeration('approve_market')).toEqual({ known: true, target: 'approved_market' });
     expect(resolveModeration('price')).toEqual({ known: true, target: null });
     expect(resolveModeration('delete')).toEqual({ known: false, target: null });

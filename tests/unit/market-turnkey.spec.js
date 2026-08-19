@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { canModerate } from '../../lib/market-moderation';
+import { canModerate, resolveModeration, MODERATION_ACTIONS } from '../../lib/market-moderation';
 
 /**
  * Пакет «Под ключ» (249 CHF): коробку разбирает и заводит организатор, продавец
@@ -75,5 +75,50 @@ test.describe('пакет «Под ключ»: вещь заводит моде�
     const list = read('app', 'market', 'admin', 'moderation-list.jsx');
     expect(list).toContain('PhotoUploader');
     expect(list).toContain('!photos.length');
+  });
+});
+
+test.describe('«Под ключ»: модератор ведёт вещь как продавец', () => {
+  test('правка полей модератором — отдельное действие, статус не меняет', () => {
+    expect(resolveModeration('edit')).toEqual({ known: true, target: null });
+    // Действие есть в списке — интерфейс и тесты берут его оттуда.
+    expect(MODERATION_ACTIONS).toContain('edit');
+  });
+
+  test('правка модератором не отправляет вещь на повторную проверку', () => {
+    // У продавца правка опубликованной вещи возвращает её в очередь. У
+    // модератора — нет: он и есть проверяющий, отправлять вещь к самому себе
+    // это театр. Роут поэтому не трогает статус при action='edit'.
+    const route = read('app', 'api', 'market', 'admin', 'items', '[id]', 'route.js');
+    expect(route).toContain("body.action === 'edit'");
+    expect(route).toContain('validateItem');
+    // Границы всё же есть: проданное и забронированное заперты для обоих.
+    expect(route).toContain('sellerEditRule');
+  });
+
+  test('экран правки закрыт от посторонних и переиспользует общую форму', () => {
+    const page = read('app', 'market', 'admin', 'items', '[id]', 'edit', 'page.jsx');
+    expect(page).toContain('isAdminEmail');
+    expect(page).toContain('notFound()');
+    expect(page).toContain('mode="admin"');
+    // Фотографии правятся там же: по «Под ключ» снимает модератор.
+    expect(page).toContain('PhotoUploader');
+  });
+
+  test('на правку можно попасть из очереди', () => {
+    const list = read('app', 'market', 'admin', 'moderation-list.jsx');
+    expect(list).toContain('/market/admin/items/');
+  });
+
+  test('приоритет в каталоге проставляется пакету «Под ключ»', () => {
+    // Поле priority было в базе с самого начала и не выставлялось нигде —
+    // обещание пакета висело пустым (находка ревизии).
+    const route = read('app', 'api', 'market', 'admin', 'items', 'route.js');
+    expect(route).toContain("package === 'turnkey'");
+    // Мало посчитать — надо записать. На этом и провалился первый заход:
+    // переменная priority вычислялась, но до insert не доезжала, а тест по
+    // слову «priority» проходил. Поэтому смотрим именно на строку записи.
+    const insert = route.split('\n').find((l) => l.includes('.insert('));
+    expect(insert).toContain('priority');
   });
 });

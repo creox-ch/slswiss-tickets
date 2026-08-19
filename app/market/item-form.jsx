@@ -48,15 +48,20 @@ export default function ItemForm({ item = null, mode = 'seller' }) {
     setBusy(true);
     setErrors([]);
     try {
+      // Четыре сочетания: продавец заводит / правит, модератор заводит / правит.
+      // У модератора правка идёт своим роутом и действием 'edit' — вещь при этом
+      // остаётся в том же статусе, на повторную проверку к себе же не уходит.
       const url = forSeller
-        ? '/api/market/admin/items'
+        ? editing
+          ? `/api/market/admin/items/${item.id}`
+          : '/api/market/admin/items'
         : editing
           ? `/api/market/items/${item.id}`
           : '/api/market/items';
       const res = await fetch(url, {
-        method: editing && !forSeller ? 'PATCH' : 'POST',
+        method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...values, action }),
+        body: JSON.stringify({ ...values, action: forSeller && editing ? 'edit' : action }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
@@ -81,7 +86,7 @@ export default function ItemForm({ item = null, mode = 'seller' }) {
 
   return (
     <form style={S.form} onSubmit={(e) => e.preventDefault()}>
-      {forSeller && (
+      {forSeller && !editing && (
         <Row>
           <Field
             label="E-mail продавца"
@@ -206,7 +211,7 @@ export default function ItemForm({ item = null, mode = 'seller' }) {
       <div style={S.actions}>
         {forSeller ? (
           <button type="button" style={S.gold} disabled={busy} onClick={() => save('save')}>
-            {busy ? 'Завожу…' : 'Завести вещь и добавить фото'}
+            {busy ? 'Сохраняю…' : editing ? 'Сохранить правку' : 'Завести вещь и добавить фото'}
           </button>
         ) : editing ? (
           <>
@@ -228,7 +233,9 @@ export default function ItemForm({ item = null, mode = 'seller' }) {
       </div>
       <p style={S.hint}>
         {forSeller
-          ? 'Вещь встанет в очередь на проверку. Фотографии добавишь там же, в карточке — без них одобрить её нельзя.'
+          ? editing
+            ? 'Правка не меняет статус вещи: если она в каталоге, там и останется — уже с новыми полями.'
+            : 'Вещь встанет в очередь на проверку. Фотографии добавишь там же, в карточке — без них одобрить её нельзя.'
           : editing
             ? 'Фото добавляются выше — минимум одно, иначе вещь не уйдёт на проверку.'
             : 'Сохрани черновик — на следующем экране появится загрузка фото. Без фото вещь на проверку не уйдёт.'}

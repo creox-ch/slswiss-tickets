@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { Resend } from 'resend';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { parseItemNo } from '../../../lib/market-items';
 import {
   normalizeSubmission,
   renderNotificationHtml,
@@ -13,6 +14,8 @@ import {
   renderSpeakerHtml,
   renderSpeakerText,
   renderMarketInterestHtml,
+  renderMarketLeadHtml,
+  renderMarketLeadText,
   renderMarketInterestText,
   renderOkaziyaHtml,
   renderOkaziyaText,
@@ -239,6 +242,45 @@ export async function POST(req) {
           });
         } catch (miErr) {
           console.error('[forms] market interest email failed', miErr);
+        }
+
+        // И письмо продавцу — с контактом покупателя. Смысл в том, чтобы свести
+        // их напрямую: мы не сторона сделки и платежей не принимаем, наша роль
+        // заканчивается на передаче контакта. Reply-To ставим на покупателя,
+        // иначе обещание «ответь на это письмо» в тексте было бы неправдой.
+        //
+        // Вещь ищем по коду из заявки. Кода нет или вещь не нашлась — письмо
+        // просто не уходит: заявка уже сохранена и продублирована нам, разберём
+        // руками. Ронять из-за этого ответ пользователю нельзя.
+        try {
+          const itemNo = parseItemNo(sub.payload && sub.payload['Код вещи']);
+          if (itemNo) {
+            const { data: item } = await supabaseAdmin
+              .from('market_items')
+              .select('id, seller_id')
+              .eq('item_no', itemNo)
+              .maybeSingle();
+            const { data: seller } = item
+              ? await supabaseAdmin
+                  .from('market_sellers')
+                  .select('email')
+                  .eq('id', item.seller_id)
+                  .maybeSingle()
+              : { data: null };
+            if (seller && seller.email) {
+              const base = process.env.PUBLIC_BASE_URL || '';
+              await resend().emails.send({
+                from: process.env.FORMS_REPORT_FROM || 'Frankenplatz <info@frankenplatz.ch>',
+                to: seller.email,
+                replyTo: sub.email,
+                subject: 'Покупатель по твоей вещи · FASHION REBORN',
+                html: renderMarketLeadHtml({ ...sub, cabinetUrl: base ? `${base}/market` : '' }),
+                text: renderMarketLeadText({ ...sub, cabinetUrl: base ? `${base}/market` : '' }),
+              });
+            }
+          }
+        } catch (slErr) {
+          console.error('[forms] market lead to seller failed', slErr);
         }
       }
 

@@ -4,6 +4,8 @@ import {
   renderMarketInterestText,
   renderMarketLoginHtml,
   renderRegistrationHtml,
+  renderMarketLeadHtml,
+  renderMarketLeadText,
 } from '../../lib/forms';
 
 /**
@@ -88,5 +90,50 @@ test.describe('бренд письма', () => {
     expect(html).toContain('24–25 октября');
     expect(html).toContain('форум о деньгах');
     expect(html).not.toContain('FASHION REBORN');
+  });
+});
+
+test.describe('письмо продавцу: контакт покупателя', () => {
+  test('называет вещь и даёт кликабельный контакт покупателя', () => {
+    const html = renderMarketLeadHtml(lead);
+    expect(html).toContain('Max Mara');
+    expect(html).toContain('FM-2026-0007');
+    expect(html).toContain('Аня');
+    // Продавец должен отвечать в один клик, а не переписывать адрес руками.
+    expect(html).toContain('mailto:anna@example.ch');
+  });
+
+  test('объясняет три шага, после которых спрашивать нас не надо', () => {
+    const html = renderMarketLeadHtml(lead);
+    expect(html).toContain('Ответь напрямую');
+    expect(html).toContain('27 сентября');
+    // Комиссия считается по отметке в кабинете, а не по нашему знанию о сделке.
+    expect(html).toContain('отметь в кабинете');
+    expect(html).toContain('12%');
+  });
+
+  test('прямо говорит, что деньги идут мимо нас', () => {
+    const html = renderMarketLeadHtml(lead);
+    expect(html).toContain('напрямую');
+    expect(html).toContain('платежей не принимаем');
+  });
+
+  test('заголовок различает бронь, торг и вопрос', () => {
+    const price = renderMarketLeadHtml({ ...lead, payload: { ...lead.payload, 'Тип обращения': 'Предложить цену' } });
+    const question = renderMarketLeadHtml({ ...lead, payload: { ...lead.payload, 'Тип обращения': 'Вопрос продавцу' } });
+    expect(price).toContain('Предлагают цену');
+    expect(question).toContain('Вопрос по твоей вещи');
+  });
+
+  test('кнопка в кабинет появляется только когда есть адрес', () => {
+    expect(renderMarketLeadHtml({ ...lead, cabinetUrl: 'https://x.test/market' })).toContain('https://x.test/market');
+    expect(renderMarketLeadHtml(lead)).not.toContain('Открыть кабинет продавца');
+  });
+
+  test('подписано маркетом, текстовая версия не пустая', () => {
+    expect(renderMarketLeadHtml(lead)).toContain('FASHION REBORN');
+    const txt = renderMarketLeadText(lead);
+    expect(txt).toContain('anna@example.ch');
+    expect(txt).toContain('отметь в кабинете');
   });
 });

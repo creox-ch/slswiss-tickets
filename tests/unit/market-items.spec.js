@@ -12,6 +12,7 @@ import {
   isBookable,
   goesToMarket,
   formatItemNo,
+  parseItemNo,
   formatPrice,
   parsePriceToRappen,
   validateItem,
@@ -453,5 +454,25 @@ test.describe('статус словами — служебные имена н�
     );
     expect(list).toContain('statusLabel');
     expect(list).not.toContain("draft: { text:");
+  });
+});
+
+test.describe('код вещи из заявки покупателя', () => {
+  test('«FM-2026-0042» → 42, туда и обратно', () => {
+    expect(parseItemNo('FM-2026-0042')).toBe(42);
+    expect(parseItemNo(formatItemNo(7))).toBe(7);
+    expect(parseItemNo('  fm-2026-0007 ')).toBe(7); // регистр и пробелы из письма
+  });
+
+  test('мусор не превращается в номер', () => {
+    // Значение приходит из формы на статическом сайте, то есть управляется
+    // кем угодно: по нему мы ищем вещь и шлём письмо продавцу.
+    expect(parseItemNo('FM-2026-0042; DROP')).toBe(null);
+    expect(parseItemNo('FM-2026-')).toBe(null);
+    expect(parseItemNo('FM-2026-0000')).toBe(null);
+    expect(parseItemNo('42')).toBe(null);
+    expect(parseItemNo('')).toBe(null);
+    expect(parseItemNo(null)).toBe(null);
+    expect(parseItemNo(undefined)).toBe(null);
   });
 });

@@ -109,6 +109,16 @@ export default function PhotoUploader({ itemId, initialPhotos = [], supabaseUrl 
       )}
 
       {photos.length > 0 && (
+        // Про кадрирование говорим заранее: в каталожной сетке карточки держат
+        // единый квадрат, и вертикальное фото там обрежется по бокам. В самой
+        // карточке вещи фото показывается целиком.
+        <p style={S.hint}>
+          В списке каталога фото кадрируется в квадрат — держи вещь по центру. Когда покупатель
+          откроет карточку, он увидит снимок целиком.
+        </p>
+      )}
+
+      {photos.length > 0 && (
         <div style={S.grid}>
           {photos.map((path) => (
             <figure key={path} style={S.thumb}>
@@ -168,7 +178,10 @@ const S = {
   img: {
     width: 120,
     height: 150,
-    objectFit: 'cover',
+    // contain, а не cover: превью показывает загруженное целиком. С cover
+    // вертикальное фото обрезалось по бокам, и человек решал, что испортился
+    // сам файл, — хотя режется только показ.
+    objectFit: 'contain',
     borderRadius: 12,
     border: '1px solid rgba(255,255,255,.14)',
     background: 'rgba(255,255,255,.04)',

@@ -4,6 +4,12 @@ import { supabaseAdmin } from '../../../../lib/supabase';
 import { getTransaction, verifyWebhookSignature, unflattenTransaction } from '../../../../lib/payrexx';
 import { sendTicketEmail, sendForumTicketEmail, sendMarketConfirmationEmail } from '../../../../lib/ticket';
 import { canConfirmToPaid, CONFIRMABLE_STATUSES } from '../../../../lib/ticket-status';
+import {
+  compareAmounts,
+  transactionAmount,
+  transactionCurrency,
+  describeMismatch,
+} from '../../../../lib/payment-check';
 import { FORUM_EVENT_SLUG } from '../../../../lib/forum-tickets';
 import { MARKET_EVENT_SLUG } from '../../../../lib/market-packages';
 
@@ -67,7 +73,9 @@ export async function POST(req) {
       // С .single() сбой БД был бы неотличим от «билета нет» и событие терялось бы с 200.
       const { data: existing, error: selErr } = await supabaseAdmin
         .from('tickets')
-        .select('id, status, qr_token, buyer_email, buyer_name, event_name, event_slug, payload, amount')
+        .select(
+          'id, status, qr_token, buyer_email, buyer_name, event_name, event_slug, payload, amount, currency'
+        )
         .eq('reference_id', referenceId)
         .maybeSingle();
       if (selErr) throw new Error(`supabase select: ${selErr.message}`);
@@ -82,6 +90,19 @@ export async function POST(req) {
       if (!canConfirmToPaid(existing.status)) {
         return NextResponse.json({ ok: true, note: `already ${existing.status}` });
       }
+
+      // Сверка денег с ценой заказа. Раньше вебхук не смотрел, сколько реально
+      // пришло: скидка, выданная на стороне Payrexx, оставила бы в базе полную
+      // цену, а на счёте — меньше, и расхождение всплыло бы только при ручной
+      // сверке выручки. Билет всё равно выдаём — деньги получены, человек ни при
+      // чём, — но факт пишем и в лог, и в саму строку заказа.
+      const amountCheck = compareAmounts({
+        expected: existing.amount,
+        paid: transactionAmount(verified),
+        expectedCurrency: existing.currency,
+        paidCurrency: transactionCurrency(verified),
+      });
+      if (amountCheck.mismatch) console.warn(describeMismatch(amountCheck, referenceId));
 
       const qrToken = crypto.randomBytes(16).toString('hex');
       const email = verified?.contact?.email || existing.buyer_email;
@@ -106,6 +127,10 @@ export async function POST(req) {
           buyer_email: email,
           buyer_name: name,
           paid_at: new Date().toISOString(),
+          // Что реально пришло — рядом с тем, что мы ожидали. Пустое paid_amount
+          // означает «в транзакции суммы не было», а не «сошлось».
+          paid_amount: amountCheck.unknown ? null : amountCheck.paid,
+          amount_mismatch: amountCheck.mismatch,
         })
         .eq('reference_id', referenceId)
         .in('status', CONFIRMABLE_STATUSES)

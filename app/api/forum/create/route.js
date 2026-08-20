@@ -10,6 +10,7 @@ import {
   isProvisional,
   FORUM_EVENT_SLUG,
 } from '../../../../lib/forum-tickets';
+import { resolvePromo } from '../../../../lib/promo-db';
 
 export const runtime = 'nodejs';
 
@@ -93,7 +94,18 @@ export async function POST(req) {
     // Сумму считает сервер (клиентской цене не верим).
     const earlyBird = earlyBirdActive();
     const order = priceOrder({ product, category, lunch, earlyBird });
-    const description = describeOrder({ product, category, lunch, earlyBird });
+    let description = describeOrder({ product, category, lunch, earlyBird });
+
+    // Промокод применяем ДО создания gateway: скидка, выданная на стороне
+    // Payrexx, прошла бы мимо нас — в заказе осталась бы полная цена, а денег
+    // пришло бы меньше (см. lib/promo.js).
+    const promo = await resolvePromo(body.promo, { scope: 'forum', base: order.total });
+    if (promo.error) {
+      // Человек ввёл код и ждёт скидку — молча продать по полной цене нельзя.
+      return json({ ok: false, error: promo.message, promoError: promo.error }, 400);
+    }
+    const amount = promo.applied ? promo.total : order.total;
+    if (promo.applied) description = `${description} · ${promo.description}`;
 
     const referenceId = `fp-${crypto.randomUUID()}`;
     const forumBase = process.env.FORUM_BASE_URL || 'https://frankenplatz.ch';
@@ -105,7 +117,7 @@ export async function POST(req) {
       event_slug: FORUM_EVENT_SLUG,
       buyer_email: email,
       buyer_name: name,
-      amount: order.total, // рапены, уже с EB и ланчем
+      amount, // рапены, уже с EB, ланчем и промокодом
       currency: 'CHF',
       status: 'pending',
       payload: {
@@ -116,8 +128,10 @@ export async function POST(req) {
         days: order.days,
         ticket_rappen: order.ticket,
         lunch_rappen: order.lunch,
+        base_rappen: order.total,
         description,
         phone,
+        ...(promo.applied ? { promo: promo.payload } : {}),
       },
     });
     if (insErr) throw new Error(`supabase insert: ${insErr.message}`);
@@ -125,7 +139,7 @@ export async function POST(req) {
     // 2) Payrexx gateway — возвращаемся на frankenplatz.ch
     const gateway = await createGateway({
       referenceId,
-      amount: order.total,
+      amount,
       currency: 'CHF',
       purpose: `Frankenplatz — ${description}`,
       successUrl: `${forumBase}/tickets.html?status=paid`,
@@ -133,7 +147,15 @@ export async function POST(req) {
       cancelUrl: `${forumBase}/tickets.html?status=cancelled`,
     });
 
-    return json({ ok: true, referenceId, payUrl: gateway.link, amount: order.total });
+    return json({
+      ok: true,
+      referenceId,
+      payUrl: gateway.link,
+      amount,
+      ...(promo.applied
+        ? { promo: { code: promo.payload.code, discount: promo.payload.discount_rappen } }
+        : {}),
+    });
   } catch (e) {
     console.error('[forum/create] error', e);
     return json({ ok: false, error: String(e.message || e) }, 500);

@@ -11,6 +11,7 @@ import {
 } from '../../../../../lib/market-items';
 import { PHOTO_BUCKET } from '../../../../../lib/market-photos';
 import { sendMarketQueueEmail } from '../../../../../lib/ticket';
+import { buildSale } from '../../../../../lib/market-commission';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -117,6 +118,15 @@ export async function PATCH(req, { params }) {
       if (!ready.ok) return NextResponse.json({ ok: false, errors: ready.errors }, { status: 400 });
     }
 
+    // Отметка о продаже — учётная запись, а не просто смена статуса: на ней
+    // считается комиссия (AGB 5.5, 5.6). Поэтому цена сделки обязательна, и
+    // пустое поле означает «продал по цене каталога», а не «не знаю».
+    if (target === 'sold') {
+      const sale = buildSale(body, { catalogPriceRappen: item.price_rappen, actor: 'seller' });
+      if (!sale.ok) return NextResponse.json({ ok: false, error: sale.error }, { status: 400 });
+      Object.assign(patch, sale.value);
+    }
+
     if (target) patch.status = target;
     // Правка опубликованной вещи возвращает её на повторную проверку: в каталоге
     // должна стоять та вещь, которую одобряли, а не то, чем её заменили после.
@@ -130,7 +140,7 @@ export async function PATCH(req, { params }) {
       // статус мог измениться, пока человек заполнял форму (например, модератор
       // уже одобрил вещь) — тогда обновление не проходит, а не затирает решение
       .eq('status', item.status)
-      .select('id, status')
+      .select('id, status, sold_price_rappen, commission_rappen, sale_channel, sold_at')
       .maybeSingle();
     if (updErr) throw new Error(`supabase update item: ${updErr.message}`);
     if (!data) {

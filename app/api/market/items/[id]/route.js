@@ -10,6 +10,7 @@ import {
   statusLabel,
 } from '../../../../../lib/market-items';
 import { PHOTO_BUCKET } from '../../../../../lib/market-photos';
+import { sendMarketQueueEmail } from '../../../../../lib/ticket';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,8 @@ async function ownedItem(req, id) {
     .from('market_items')
     // photos и остальные поля нужны для проверки готовности к публикации:
     // фото приходят не с формой, а из своего роута — см. canPublish.
-    .select('id, status, seller_id, photos, brand, title, description_ru, price_rappen')
+    // item_no — для письма модератору: в очереди вещь ищут по коду, а не по id.
+    .select('id, item_no, status, seller_id, photos, brand, title, description_ru, price_rappen')
     .eq('id', id)
     .maybeSingle();
   if (itemErr) throw new Error(`supabase select item: ${itemErr.message}`);
@@ -60,7 +62,7 @@ async function ownedItem(req, id) {
   if (!item || item.seller_id !== seller.id) {
     return { error: NextResponse.json({ ok: false, error: 'Вещь не найдена.' }, { status: 404 }) };
   }
-  return { item };
+  return { item, sellerEmail: email };
 }
 
 export async function PATCH(req, { params }) {
@@ -69,7 +71,7 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ ok: false, error: 'Кабинет пока недоступен.' }, { status: 503 });
     }
     const { id } = await params;
-    const { item, error } = await ownedItem(req, id);
+    const { item, sellerEmail, error } = await ownedItem(req, id);
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));
@@ -136,6 +138,26 @@ export async function PATCH(req, { params }) {
         { ok: false, error: 'Статус вещи изменился — обнови страницу.' },
         { status: 409 }
       );
+    }
+
+    // Очередь молчала: продавец отправлял вещь и ждал, а мы узнавали об этом,
+    // только если случайно открывали /market/admin. Письмо шлём и на первую
+    // проверку, и на возврат опубликованной вещи после правки — во втором случае
+    // вещь уже ушла из каталога и висит невидимой, пока её не посмотрят.
+    if (data.status === 'pending' && item.status !== 'pending') {
+      try {
+        await sendMarketQueueEmail({
+          itemNo: item.item_no,
+          brand: patch.brand ?? item.brand,
+          title: patch.title ?? item.title,
+          sellerEmail,
+          reason: target === 'pending' ? 'new' : 'edited',
+        });
+      } catch (mailErr) {
+        // Письмо модератору не должно ронять сохранение: вещь уже в очереди,
+        // и продавцу важнее увидеть «отправлено», чем нам — уведомление.
+        console.error('[market/items PATCH] queue email failed', mailErr);
+      }
     }
 
     return NextResponse.json({ ok: true, item: data });

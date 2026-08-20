@@ -35,6 +35,26 @@ alter table public.promo_codes enable row level security;
 create index if not exists tickets_promo_idx
   on public.tickets ((payload->'promo'->>'code'));
 
+-- Считает база, а не клиент. Путь по вложенному JSON, написанный строкой в
+-- supabase-js, при ошибке не падает, а молча возвращает ноль — и код с лимитом
+-- «20 штук» работал бы бесконечно, о чём не сказал бы ни один тест. Здесь то же
+-- выражение проверяемо, и оно одно на весь проект.
+create or replace function public.count_promo_uses(p_code text)
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select count(*)::integer
+  from public.tickets
+  where payload->'promo'->>'code' = upper(trim(p_code))
+    and status in ('paid', 'checked_in');
+$$;
+
+comment on function public.count_promo_uses(text) is
+  'Сколько оплаченных заказов использовали этот промокод. Основание для max_uses.';
+
 -- Фактически оплаченная сумма из транзакции Payrexx. Отдельной колонкой, а не
 -- только в payload: по ней сверяют выручку, и она должна быть видна в обычном
 -- SELECT рядом с amount. Расходится с amount → скидка прошла мимо нас.

@@ -7,9 +7,10 @@ import {
   packagePriceRappen,
   describePackage,
   isValidPackage,
-  ebLimitFor,
   MARKET_EVENT_SLUG,
 } from '../../../../lib/market-packages';
+import { marketEarlyBirdActive } from '../../../../lib/market-early-bird';
+import { resolvePromo } from '../../../../lib/promo-db';
 
 export const runtime = 'nodejs';
 
@@ -51,25 +52,6 @@ export async function OPTIONS(req) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(req.headers.get('origin')) });
 }
 
-/**
- * Активна ли ещё Early Bird цена пакета: сколько market-строк со скидкой уже
- * оплачено < лимита. Мягкий счётчик (пороги «первых N» — маркетинговые):
- * при одновременных оформлениях EB могут получить чуть больше N, что не вредно.
- */
-async function earlyBirdActive(pkg) {
-  const limit = ebLimitFor(pkg);
-  if (!limit) return false;
-  const { count, error } = await supabaseAdmin
-    .from('tickets')
-    .select('id', { count: 'exact', head: true })
-    .eq('event_slug', MARKET_EVENT_SLUG)
-    .eq('payload->>package', pkg)
-    .eq('payload->>earlyBird', 'true')
-    .in('status', ['paid', 'checked_in']);
-  if (error) throw new Error(`supabase count: ${error.message}`);
-  return (count || 0) < limit;
-}
-
 export async function POST(req) {
   const origin = req.headers.get('origin');
   const cors = corsHeaders(origin);
@@ -98,9 +80,20 @@ export async function POST(req) {
     }
 
     // Сумму считает сервер (клиентской цене не верим).
-    const earlyBird = await earlyBirdActive(pkg);
-    const amount = packagePriceRappen(pkg, earlyBird);
-    const description = describePackage(pkg, earlyBird);
+    const earlyBird = await marketEarlyBirdActive(pkg);
+    const basePrice = packagePriceRappen(pkg, earlyBird);
+    let description = describePackage(pkg, earlyBird);
+
+    // Промокод применяем ДО создания gateway: в Payrexx уходит уже итоговая
+    // сумма, и она же лежит в заказе. Скидка на стороне Payrexx прошла бы мимо
+    // нас — в базе осталась бы полная цена (см. lib/promo.js).
+    const promo = await resolvePromo(body.promo, { scope: 'market', base: basePrice });
+    if (promo.error) {
+      // Молча продать по полной цене нельзя: человек ввёл код и ждёт скидку.
+      return json({ ok: false, error: promo.message, promoError: promo.error }, 400);
+    }
+    const amount = promo.applied ? promo.total : basePrice;
+    if (promo.applied) description = `${description} · ${promo.description}`;
 
     const referenceId = `mk-${crypto.randomUUID()}`;
     const forumBase = process.env.FORUM_BASE_URL || 'https://frankenplatz.ch';
@@ -112,10 +105,17 @@ export async function POST(req) {
       event_slug: MARKET_EVENT_SLUG,
       buyer_email: email,
       buyer_name: name,
-      amount, // рапены, уже с учётом EB
+      amount, // рапены, уже с учётом EB и промокода
       currency: 'CHF',
       status: 'pending',
-      payload: { package: pkg, earlyBird, description, phone },
+      payload: {
+        package: pkg,
+        earlyBird,
+        description,
+        phone,
+        base_rappen: basePrice,
+        ...(promo.applied ? { promo: promo.payload } : {}),
+      },
     });
     if (insErr) throw new Error(`supabase insert: ${insErr.message}`);
 
@@ -130,7 +130,15 @@ export async function POST(req) {
       cancelUrl: `${forumBase}/brand-market.html?status=cancelled`,
     });
 
-    return json({ ok: true, referenceId, payUrl: gateway.link, amount });
+    return json({
+      ok: true,
+      referenceId,
+      payUrl: gateway.link,
+      amount,
+      ...(promo.applied
+        ? { promo: { code: promo.payload.code, discount: promo.payload.discount_rappen } }
+        : {}),
+    });
   } catch (e) {
     console.error('[market/create] error', e);
     return json({ ok: false, error: String(e.message || e) }, 500);

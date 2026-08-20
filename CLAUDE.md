@@ -25,7 +25,8 @@
 - Клиенты: `lib/supabase.js` (ленивый Proxy, `supabaseAdmin`), `lib/ticket.js` (ленивый Resend, `sendTicketEmail`, `escapeHtml`), `lib/payrexx.js` (подписи/gateway/transaction/`unflattenTransaction`; env лениво).
 - Cron (Vercel, расписание в `vercel.json`; оба закрыты `CRON_SECRET`, без него 503): `app/api/cron/newsletter-digest` (сводка подписок) и `app/api/cron/cleanup-pending` (брошенные корзины: `pending` → `failed` через сутки, удаление через 30 дней; пороги — `lib/pending-cleanup.js`). ⚠ Hobby даёт **2 задания на аккаунт, раз в сутки** — обе заняты.
 - Безопасность в CI: workflow «Безопасность» (`npm run audit:gate` + gitleaks) и `.github/dependabot.yml`. Гейт роняет сборку на всём, чего нет в `.audit-allowlist.json`, на истёкшем сроке принятия и на новой дыре в уже принятом пакете (логика — `lib/audit-gate.js`).
-- Схема БД: `supabase-schema.sql` (таблица `tickets`).
+- Схема БД: `supabase-schema.sql` (таблица `tickets`), `supabase-market-auth.sql` + `supabase-market-cabinet.sql` (кабинет маркета), `supabase-promo.sql` (промокоды и след фактически оплаченной суммы).
+- Промокоды — свои, не купоны Payrexx: скидка считается ДО создания gateway (`lib/promo.js` — правила, `lib/promo-db.js` — единственный поход в базу; зовут оба create-роута и `/api/promo/check`). Купон на стороне Payrexx оставил бы в заказе полную цену, а денег пришло бы меньше. Лимит кода считается по ОПЛАЧЕННЫМ заказам, как Early Bird: брошенная корзина скидку не жжёт. Вебхук сверяет пришедшую сумму с ценой заказа (`lib/payment-check.js`): расхождение билет не отменяет, но пишется в лог и в `tickets.paid_amount` / `amount_mismatch`.
 - Тесты: `tests/unit` + `tests/e2e` (Playwright, `npm test`; e2e мокают API — внешние сервисы не нужны). CI: `.github/workflows/test.yml`.
 
 ## Закрытые решения

@@ -6,6 +6,7 @@ import {
   TARGET_LONG_SIDE,
   TARGET_QUALITY,
   ALLOWED_MIME,
+  PICKER_ACCEPT,
   photoPublicUrl,
 } from '../../lib/market-photos';
 import { MAX_PHOTOS } from '../../lib/market-items';
@@ -22,7 +23,19 @@ export default function PhotoUploader({ itemId, initialPhotos = [], supabaseUrl 
   const [photos, setPhotos] = useState(initialPhotos);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // Сколько файлов из пачки уже прошло. На телефоне по мобильной сети каждое
+  // фото идёт секундами, и без счётчика экран выглядит зависшим.
+  const [progress, setProgress] = useState(null);
 
+  /**
+   * Загрузка пачки.
+   *
+   * Каждый файл идёт своей попыткой и **не прерывает остальные**. Раньше первый
+   * же сбой ломал всю пачку: 20.08 на айфоне из пяти выбранных фото доехало
+   * два — остальные даже не пробовались. Телефон отдаёт файлы капризно (снимок
+   * из iCloud может быть не скачан на устройство, Safari экономит память на
+   * больших картинках), и это надо переживать, а не сдаваться на первом.
+   */
   async function onPick(e) {
     const files = Array.from(e.target.files || []);
     e.target.value = ''; // чтобы тот же файл можно было выбрать снова после ошибки
@@ -31,34 +44,39 @@ export default function PhotoUploader({ itemId, initialPhotos = [], supabaseUrl 
     setError('');
     setBusy(true);
     let current = photos;
+    const failed = [];
+    let limitHit = false;
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
       if (current.length >= MAX_PHOTOS) {
-        setError(`Больше ${MAX_PHOTOS} фото на вещь не нужно.`);
+        limitHit = true;
         break;
       }
-      try {
-        const prepared = await shrink(file);
-        const form = new FormData();
-        form.append('file', prepared, prepared.name);
-        const res = await fetch(`/api/market/items/${itemId}/photos`, {
-          method: 'POST',
-          body: form,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.ok) {
-          current = data.photos;
-          setPhotos(current);
-        } else {
-          setError(data.error || 'Не получилось загрузить фото.');
-          break;
-        }
-      } catch (err) {
-        setError('Не удалось подготовить файл. Попробуй другое фото.');
-        break;
+      setProgress(files.length > 1 ? { done: i, total: files.length } : null);
+
+      const result = await uploadOne(files[i], itemId);
+      if (result.ok) {
+        current = result.photos;
+        setPhotos(current);
+      } else {
+        failed.push({ name: files[i].name || 'фото', reason: result.error });
       }
     }
+
+    setProgress(null);
     setBusy(false);
+
+    // Говорим отдельно про каждую судьбу: сколько дошло и что именно не вышло.
+    // Общее «не получилось» после частичной загрузки заставляет грузить заново
+    // всё, включая уже лежащее.
+    if (limitHit) {
+      setError(`Больше ${MAX_PHOTOS} фото на вещь не нужно — остальные не добавила.`);
+    } else if (failed.length) {
+      const names = failed.map((f) => f.name).join(', ');
+      const uploaded = files.length - failed.length;
+      const head = uploaded ? `Загрузила ${uploaded} из ${files.length}. ` : '';
+      setError(`${head}Не вышло: ${names}. ${failed[0].reason}`);
+    }
   }
 
   async function remove(path) {
@@ -88,10 +106,14 @@ export default function PhotoUploader({ itemId, initialPhotos = [], supabaseUrl 
         </span>
         {photos.length < MAX_PHOTOS && (
           <label style={S.add}>
-            {busy ? 'Загружаю…' : '+ Добавить фото'}
+            {busy
+              ? progress
+                ? `Загружаю ${progress.done + 1} из ${progress.total}…`
+                : 'Загружаю…'
+              : '+ Добавить фото'}
             <input
               type="file"
-              accept={ALLOWED_MIME.join(',')}
+              accept={PICKER_ACCEPT}
               multiple
               onChange={onPick}
               disabled={busy}
@@ -137,34 +159,148 @@ export default function PhotoUploader({ itemId, initialPhotos = [], supabaseUrl 
   );
 }
 
+/** Пауза между попытками: фото из iCloud успевает догрузиться на устройство. */
+const RETRY_DELAYS = [400, 1500];
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Один файл: подготовить и отправить, с повтором на «капризных» ошибках.
+ *
+ * Повторяем только то, что повторять осмысленно: не прочитался файл (типичное
+ * для снимков, лежащих в iCloud и не скачанных на телефон) и обрыв сети.
+ * Отказ сервера — «слишком тяжёлое», «не тот формат», «уже пять фото» —
+ * повтором не лечится, и долбить им сервер незачем.
+ */
+async function uploadOne(file, itemId) {
+  for (let attempt = 0; ; attempt++) {
+    let prepared;
+    try {
+      prepared = await shrink(file);
+    } catch (err) {
+      if (isTransient(err) && attempt < RETRY_DELAYS.length) {
+        await wait(RETRY_DELAYS[attempt]);
+        continue;
+      }
+      return { ok: false, error: prepareErrorText(err) };
+    }
+
+    try {
+      const form = new FormData();
+      form.append('file', prepared, prepared.name);
+      const res = await fetch(`/api/market/items/${itemId}/photos`, {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) return { ok: true, photos: data.photos };
+      return { ok: false, error: data.error || 'Сервер не принял фото.' };
+    } catch (err) {
+      // Сюда попадает только обрыв связи: ответы с ошибкой разобраны выше.
+      if (attempt < RETRY_DELAYS.length) {
+        await wait(RETRY_DELAYS[attempt]);
+        continue;
+      }
+      return { ok: false, error: 'Связь оборвалась — попробуй ещё раз.' };
+    }
+  }
+}
+
+/** Ошибки, которые проходят сами: файл ещё не на устройстве, память занята. */
+function isTransient(err) {
+  const name = err && err.name ? String(err.name) : '';
+  return name === 'NotReadableError' || name === 'SecurityError' || name === 'AbortError';
+}
+
+function prepareErrorText(err) {
+  if (isTransient(err)) {
+    // Самая частая причина на айфоне: включена «Оптимизация хранилища», сам
+    // снимок лежит в iCloud, и браузер не может его прочитать.
+    return 'Файл не читается. Если фото хранится в iCloud — открой его в «Фото», дождись полной загрузки и попробуй снова.';
+  }
+  return 'Не получилось подготовить фото. Попробуй другое.';
+}
+
 /**
  * Сжатие через canvas: ужимаем до длинной стороны TARGET_LONG_SIDE и пишем JPEG.
- * Файлы меньше лимита и без лишних пикселей отдаём как есть — незачем
- * перекодировать то, что и так в порядке.
+ *
+ * Отдаём файл как есть только если он и так годится — и по размеру, и по типу.
+ * Проверка типа важна для айфона: HEIC небольшого размера иначе ушёл бы на
+ * сервер нетронутым, а там принимаются только JPEG, PNG и WebP.
  */
 async function shrink(file) {
-  const bitmap = await createImageBitmap(file);
-  const longSide = Math.max(bitmap.width, bitmap.height);
-  if (longSide <= TARGET_LONG_SIDE && file.size <= MAX_PHOTO_BYTES) {
-    bitmap.close?.();
+  const source = await decode(file);
+  const width = source.width;
+  const height = source.height;
+  const longSide = Math.max(width, height);
+  const typeOk = ALLOWED_MIME.includes(file.type);
+
+  if (typeOk && longSide <= TARGET_LONG_SIDE && file.size <= MAX_PHOTO_BYTES) {
+    release(source);
     return file;
   }
 
   const scale = Math.min(1, TARGET_LONG_SIDE / longSide);
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  release(source);
 
   const blob = await new Promise((resolve) =>
     canvas.toBlob(resolve, 'image/jpeg', TARGET_QUALITY)
   );
+  // Освобождаем сразу: Safari на телефоне держит холсты до сборки мусора, и на
+  // третьем-четвёртом снимке подряд памяти уже не хватает.
+  canvas.width = 0;
+  canvas.height = 0;
   if (!blob) throw new Error('canvas.toBlob вернул пусто');
 
   const name = file.name.replace(/\.[^.]+$/, '') || 'photo';
   return new File([blob], `${name}.jpg`, { type: 'image/jpeg' });
+}
+
+/**
+ * Декодирование картинки: сначала быстрый путь, потом запасной.
+ *
+ * `createImageBitmap` на телефоне отказывает чаще, чем кажется — на HEIC и на
+ * снимках в 12 мегапикселей. Обычный `<img>` в тех же случаях справляется:
+ * он декодирует лениво и умеет всё, что умеет показать сам браузер.
+ */
+async function decode(file) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await createImageBitmap(file);
+    } catch {
+      // молча уходим на запасной путь — причина видна по итогу
+    }
+  }
+  return decodeViaImg(file);
+}
+
+function decodeViaImg(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      img._objectUrl = url;
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      const err = new Error('img.onerror');
+      err.name = 'NotReadableError';
+      reject(err);
+    };
+    img.src = url;
+  });
+}
+
+/** Отпустить то, что держит декодер: ImageBitmap закрывается, objectURL — отзывается. */
+function release(source) {
+  if (source && typeof source.close === 'function') source.close();
+  if (source && source._objectUrl) URL.revokeObjectURL(source._objectUrl);
 }
 
 const S = {

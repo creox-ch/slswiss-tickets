@@ -22,12 +22,12 @@
     "@playwright/test": "^1.62.1"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.3",
+    "@supabase/supabase-js": "^2.112.4",
     "@zxing/browser": "^0.2.1",
-    "next": "^15.5.23",
+    "next": "^15.5.24",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "resend": "^6.20.0"
+    "resend": "^6.24.0"
   }
 }

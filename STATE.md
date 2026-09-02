@@ -232,7 +232,7 @@ node --check lib/*.js app/api/**/route.js
 - Чек-ин: `update ... eq(status,'paid').select()` — при гонке двух сканеров проигравший получает `already`. Если задан `CHECKIN_STAFF_KEY`, требуется заголовок `X-Staff-Key` (сканер держит его в localStorage).
 - `lib/supabase.js`, `lib/ticket.js`, env в `lib/payrexx.js` — **ленивые** (иначе `next build` падает: «Failed to collect page data»; и env можно менять в тестах).
 - Payrexx API base: `https://api.payrexx.com/v1.0`, instance передаётся как `?instance=`.
-- Тесты: `npm test` (Playwright; e2e мокают API через `page.route` — Supabase/Payrexx не нужны). Локально node нет — валидация через CI.
+- Тесты: `npm test` (Playwright; e2e мокают API через `page.route` — Supabase/Payrexx не нужны). **node локально ЕСТЬ** (с 2026-08-11) — `node --check`/тесты можно гонять на машине, не только в CI.
 
 **Env-переменные (Vercel → проект → Settings → Environment Variables):**
 
@@ -271,8 +271,8 @@ node --check lib/*.js app/api/**/route.js
 
 ## Чего агент НЕ может из этой среды (ограничения)
 
-- **Нет `gh` CLI.** GitHub-операции — через веб (Claude in Chrome) или PowerShell у Kseniia.
-- **`git push`/commit из песочницы не работают.** Mount не даёт удалять/заменять файлы («Operation not permitted» на unlink), застревает `.git/index.lock`. Git-операции делает Kseniia в PowerShell.
+- **`gh` CLI ЕСТЬ** (с 2026-08-11), авторизован как **`ivannasm80`** (scopes `repo`+`workflow`, доступ к `creox-ch`). GitHub-операции — из **PowerShell**; **push/PR работают** (проверено 2026-08-27 на `motozuerich.ch`: ветка + push + PR). ⚠ Аккаунт `amossokn-oss` **заблокирован** (причина неизвестна) — работаем под `ivannasm80`; осторожно, без массовой автоматизации и запросов пачками.
+- **`git push`/commit из ПЕСОЧНИЦЫ (bash-mount) по-прежнему не работают** — «Operation not permitted» на unlink, застревает `.git/index.lock`. Git-операции — из PowerShell (агент или Иванна), не из mount.
 - **bash-mount может показывать УСТАРЕВШУЮ/обрезанную копию** недавно отредактированных файлов. **Источник истины — файловые инструменты (Read/Write) и git HEAD/origin/деплой**, не вывод bash `cat`. (24.06 bash показывал 4 файла «обрезанными», хотя на диске и в git они полные.)
 - Деплой Vercel-инструмент из Cowork сам не публикует — только git push (авто-деплой) или Vercel CLI.
 - Ввод секретов (API-ключи, токены) в формы делает Kseniia сама — агенту нельзя.
@@ -299,6 +299,7 @@ node --check lib/*.js app/api/**/route.js
 
 ## История STATE.md
 
+- **2026-08-27** — сессия целиком по **MOTO-ZÜRICH** (другой репо: `motozuerich.ch` + портал экспонентов в Supabase), продукт этого стенда не менялся. Здесь исправлены только устаревшие факты среды, проверенные делом: `gh` CLI есть (авторизован `ivannasm80`), `git push`/PR из PowerShell работают, node локально есть; блокирован лишь аккаунт `amossokn-oss` (причина неизвестна) — работаем под `ivannasm80`. Состояние MOTO-ZÜRICH (прайс-гейт, дайджест лидов, сверка Halle 550) — в файлах памяти, не здесь.
 - **2026-07-20** — сверка с кодом после двух недель работы «мимо STATE». Зафиксировано: у репо появилась вторая роль — бэкенд форм платформы (`/api/forms` + `submissions` + `lib/forms.js` + скилл `add-form-origin`), подключены 4 сайта; удалён dev-бэкдор (12.07); env-таблица дополнена `FORMS_*`; чек-лист перед продом актуализирован. Внешние решения: Resend **Pro** оплачен (лимит доменов снят), домен `frankenplatz.ch` куплен, задача на почтовые ящики передана админу Google Workspace. Висит срочное: платный план Payrexx (~24.07).
 - **2026-07-03** — ревью проекта + спринт фиксов: гонка сканеров, сбой БД ≠ «не найден», вебхук 500 на нашей ошибке, цена server-side, fail-closed подпись, ключ персонала, `/thanks`, экранирование письма, лимит `/api/qr`, Playwright-тесты + CI, branch protection на `main` (оба репо). Env-таблица актуализирована (Resend/Payrexx заданы 2026-06-29).
 - **2026-06-24** — создан. Сверено с кодом и деплоем. Зафиксировано: стенд задеплоен и работает (билет+сканер через dev/issue); оплата Payrexx блокирована активацией PSP (422); env-статус; расхождения ТЗ↔код; ограничения среды (push только из PowerShell, bash-mount показывает устаревшие копии). ТЗ перенесено в `docs/`.

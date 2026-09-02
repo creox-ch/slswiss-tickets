@@ -51,7 +51,7 @@ export async function GET(req) {
     const { data, error } = await supabaseAdmin
       .from('market_items')
       .select(
-        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note, created_at'
+        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note, created_at, sold_price_rappen, commission_rappen, sale_channel, sold_at'
       )
       .eq('seller_id', seller.id)
       .order('created_at', { ascending: false });

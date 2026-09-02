@@ -4,6 +4,8 @@ import LogoutButton from './logout-button';
 import ItemList from './item-list';
 import { SESSION_COOKIE, verifySession, isAdminEmail } from '../../lib/market-auth';
 import { describePackage } from '../../lib/market-packages';
+import { formatPrice } from '../../lib/market-items';
+import { summarizeSales, COMMISSION_PERCENT } from '../../lib/market-commission';
 
 export const metadata = { title: 'Кабинет продавца — Frankenplatz Market' };
 export const dynamic = 'force-dynamic'; // страница зависит от cookie, кэшировать нечего
@@ -52,6 +54,9 @@ export default async function MarketCabinetPage({ searchParams }) {
   const seller = await loadSeller(email);
   const packageLabel = seller && seller.package ? describePackage(seller.package, false) : null;
   const { items, failed } = await loadItems(seller && seller.id);
+  // Считаем по тем же строкам, что показаны в списке: сводка и карточки не
+  // должны расходиться, даже если запрос вернул неполные данные.
+  const sold = summarizeSales(items.filter((i) => i.status === 'sold'));
 
   return (
     <Shell>
@@ -89,6 +94,25 @@ export default async function MarketCabinetPage({ searchParams }) {
           <ItemList items={items} />
         )}
       </section>
+
+      {/* Сводка появляется только когда есть что сводить: пустая табличка
+          «продано 0, комиссия 0» у продавца, который ещё ничего не выставил,
+          выглядит упрёком. */}
+      {!failed && sold.count > 0 && (
+        <section style={S.card}>
+          <h2 style={S.h2}>Продажи</h2>
+          <p style={S.saleLine}>
+            Продано вещей: <b>{sold.count}</b> · на сумму <b>{formatPrice(sold.gross)}</b>
+          </p>
+          <p style={S.saleLine}>
+            Комиссия {COMMISSION_PERCENT}%: <b>{formatPrice(sold.commission)}</b>
+          </p>
+          <p style={S.hint}>
+            Счёт на комиссию придёт после маркета, в течение 7 дней. Деньги за вещи покупатели
+            отдают тебе напрямую — здесь только учёт сделок.
+          </p>
+        </section>
+      )}
 
       <section style={S.card}>
         <h2 style={S.h2}>Что дальше</h2>
@@ -155,7 +179,7 @@ async function loadItems(sellerId) {
     const { data, error } = await supabaseAdmin
       .from('market_items')
       .select(
-        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note'
+        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note, sold_price_rappen, commission_rappen, sale_channel, sold_at'
       )
       .eq('seller_id', sellerId)
       .order('created_at', { ascending: false });
@@ -190,6 +214,7 @@ const S = {
   lead: { margin: 0, fontSize: 15.5, lineHeight: 1.65, color: '#C3B7D4' },
   text: { margin: '0 0 10px', fontSize: 15, lineHeight: 1.6, color: '#E6DEF2' },
   hint: { margin: 0, fontSize: 13, lineHeight: 1.55, color: '#7A6C93' },
+  saleLine: { margin: '0 0 8px', fontSize: 15, lineHeight: 1.5, color: '#F3EEF9' },
   list: { margin: '0 0 10px', paddingLeft: 20, fontSize: 15, lineHeight: 1.7, color: '#E6DEF2' },
   card: {
     background: 'rgba(255,255,255,.04)',

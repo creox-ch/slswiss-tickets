@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../lib/supabase';
 import { sessionEmailFromRequest } from '../../../../lib/market-auth';
 import { validateItem, canTransition } from '../../../../lib/market-items';
+import { sendMarketQueueEmail } from '../../../../lib/ticket';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,7 +51,7 @@ export async function GET(req) {
     const { data, error } = await supabaseAdmin
       .from('market_items')
       .select(
-        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note, created_at'
+        'id, item_no, brand, title, category, condition, size, price_rappen, status, photos, moderation_note, created_at, sold_price_rappen, commission_rappen, sale_channel, sold_at'
       )
       .eq('seller_id', seller.id)
       .order('created_at', { ascending: false });
@@ -92,6 +93,23 @@ export async function POST(req) {
       .select('id, item_no, status')
       .maybeSingle();
     if (error) throw new Error(`supabase insert item: ${error.message}`);
+
+    // Вещь можно создать сразу отправленной — тогда очередь узнаёт о ней здесь,
+    // а не в PATCH. Ошибку письма глотаем: вещь уже сохранена, и терять её
+    // из-за недоступного Resend неправильно.
+    if (data && data.status === 'pending') {
+      try {
+        await sendMarketQueueEmail({
+          itemNo: data.item_no,
+          brand: check.value.brand,
+          title: check.value.title,
+          sellerEmail: seller.email,
+          reason: 'new',
+        });
+      } catch (mailErr) {
+        console.error('[market/items POST] queue email failed', mailErr);
+      }
+    }
 
     return NextResponse.json({ ok: true, item: data });
   } catch (e) {

@@ -5,6 +5,8 @@ import {
   isValidPackage,
   ebLimitFor,
   getPackage,
+  packageRank,
+  bestPackage,
   PACKAGE_KEYS,
   MARKET_EVENT_SLUG,
 } from '../../lib/market-packages';
@@ -22,6 +24,40 @@ test.describe('каталог пакетов маркета — цены', () =>
     // у online/turnkey EB нет — флаг игнорируется
     expect(packagePriceRappen('online', true)).toBe(8900);
     expect(packagePriceRappen('turnkey', true)).toBe(24900);
+  });
+
+  test('доплата за старший пакет догоняет кабинет', () => {
+    // Продавец купил «Онлайн», через неделю доплатил за «Маркет». Пока пакет
+    // существующей строки не обновлялся, кабинет навсегда оставался на «Онлайн»
+    // — человек не видел того, за что заплатил.
+    expect(bestPackage('online', 'market')).toBe('market');
+    expect(bestPackage('market', 'turnkey')).toBe('turnkey');
+  });
+
+  test('покупка младшего пакета ничего не отнимает', () => {
+    // Реальный случай 20.08: тестовая покупка «Онлайн» поверх «Маркета».
+    // Берём старший, а не последний по времени.
+    expect(bestPackage('market', 'online')).toBe('market');
+    expect(bestPackage('turnkey', 'online')).toBe('turnkey');
+  });
+
+  test('пустой и неизвестный пакет слабее любого настоящего', () => {
+    expect(bestPackage(null, 'online')).toBe('online');
+    expect(bestPackage('online', null)).toBe('online');
+    expect(bestPackage('online', 'нечто')).toBe('online');
+    expect(bestPackage(null, null)).toBe(null);
+    expect(packageRank('нечто')).toBe(0);
+  });
+
+  test('старшинство совпадает с ценой пакета', () => {
+    // Если появится четвёртый пакет, эти два порядка не должны разъехаться
+    // молча: дороже — значит включает предыдущий.
+    const byRank = [...PACKAGE_KEYS].sort((a, b) => packageRank(a) - packageRank(b));
+    const byPrice = [...PACKAGE_KEYS].sort(
+      (a, b) => packagePriceRappen(a, false) - packagePriceRappen(b, false)
+    );
+    expect(byRank).toEqual(byPrice);
+    expect(byRank.every((k) => packageRank(k) > 0)).toBe(true);
   });
 
   test('ebLimitFor: только «Маркет» имеет лимит 20', () => {

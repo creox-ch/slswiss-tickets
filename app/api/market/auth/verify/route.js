@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '../../../../../lib/supabase';
-import { MARKET_EVENT_SLUG } from '../../../../../lib/market-packages';
+import { MARKET_EVENT_SLUG, bestPackage } from '../../../../../lib/market-packages';
 import {
   SESSION_COOKIE,
   hashToken,
@@ -81,14 +81,24 @@ export async function GET(req) {
 async function ensureSeller(email) {
   const { data: existing, error: selErr } = await supabaseAdmin
     .from('market_sellers')
-    .select('id')
+    .select('id, package')
     .eq('email', email)
     .maybeSingle();
   if (selErr) throw new Error(`supabase select seller: ${selErr.message}`);
 
   const now = new Date().toISOString();
   if (existing) {
-    await supabaseAdmin.from('market_sellers').update({ last_login_at: now }).eq('id', existing.id);
+    // Пакет догоняет оплату. Раньше существующей строке обновлялся только вход:
+    // продавец, купивший «Онлайн» и позже доплативший за «Маркет», навсегда
+    // оставался в кабинете с «Онлайн» — то есть не видел того, за что заплатил.
+    // Берём старший из двух, а не последний по времени: покупка младшего пакета
+    // поверх старшего ничего не должна отнимать.
+    const patch = { last_login_at: now };
+    const paidPackage = await latestPaidPackage(email);
+    const best = bestPackage(existing.package, paidPackage);
+    if (best && best !== existing.package) patch.package = best;
+
+    await supabaseAdmin.from('market_sellers').update(patch).eq('id', existing.id);
     return existing.id;
   }
 
@@ -121,4 +131,28 @@ async function ensureSeller(email) {
     throw new Error(`supabase insert seller: ${insErr.message}`);
   }
   return created ? created.id : null;
+}
+
+/**
+ * Старший из оплаченных пакетов этого адреса.
+ *
+ * Смотрим все оплаты, а не последнюю: человек мог доплатить за старший пакет,
+ * а потом купить младший (так вышло на тестовой покупке 20.08) — и «последняя»
+ * оплата отняла бы у него то, за что он заплатил раньше.
+ */
+async function latestPaidPackage(email) {
+  const { data, error } = await supabaseAdmin
+    .from('tickets')
+    .select('payload')
+    .eq('event_slug', MARKET_EVENT_SLUG)
+    .eq('buyer_email', email)
+    .in('status', ['paid', 'checked_in']);
+  if (error) throw new Error(`supabase select tickets: ${error.message}`);
+
+  let best = null;
+  for (const row of data || []) {
+    const pkg = row && row.payload ? row.payload.package : null;
+    best = bestPackage(best, pkg);
+  }
+  return best;
 }

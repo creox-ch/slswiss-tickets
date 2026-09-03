@@ -17,7 +17,7 @@ import {
  */
 
 const code = (over = {}) => ({
-  code: 'PODRUGA20',
+  code: 'EXAMPLE10',
   scope: 'all',
   kind: 'percent',
   value: 20,
@@ -32,14 +32,14 @@ const NOW = Date.parse('2026-08-20T12:00:00Z');
 
 test.describe('нормализация кода', () => {
   test('регистр и пробелы не важны', () => {
-    expect(normalizeCode('  podruga20 ')).toBe('PODRUGA20');
-    expect(normalizeCode('Presse-2026')).toBe('PRESSE-2026');
+    expect(normalizeCode('  example10 ')).toBe('EXAMPLE10');
+    expect(normalizeCode('Sample-2026')).toBe('SAMPLE-2026');
   });
 
   test('кириллица в латинском коде не проходит', () => {
-    // «С» из кириллицы в PRESSE — классическая загадка поддержки: на вид код
+    // «С» из кириллицы в SAMPLE — классическая загадка поддержки: на вид код
     // верный, в базе не находится. Лучше сразу сказать «такого кода нет».
-    expect(normalizeCode('РRESSE')).toBe('');
+    expect(normalizeCode('РSAMPLE')).toBe('');
     expect(normalizeCode('promo code')).toBe('');
     expect(normalizeCode('a'.repeat(33))).toBe('');
     expect(normalizeCode(null)).toBe('');
@@ -134,7 +134,7 @@ test.describe('след в заказе', () => {
     const row = code({ kind: 'percent', value: 20 });
     const applied = applyPromo(10900, row);
     expect(promoPayload(row, applied)).toMatchObject({
-      code: 'PODRUGA20',
+      code: 'EXAMPLE10',
       kind: 'percent',
       value: 20,
       discount_rappen: 2180,
@@ -148,9 +148,9 @@ test.describe('след в заказе', () => {
   });
 
   test('описание читается в письме и в Payrexx', () => {
-    expect(describePromo(code({ kind: 'percent', value: 20 }))).toBe('PODRUGA20 −20%');
-    expect(describePromo(code({ code: 'presse', kind: 'amount', value: 5000 }))).toBe(
-      'PRESSE −50 CHF'
+    expect(describePromo(code({ kind: 'percent', value: 20 }))).toBe('EXAMPLE10 −20%');
+    expect(describePromo(code({ code: 'sample', kind: 'amount', value: 5000 }))).toBe(
+      'SAMPLE −50 CHF'
     );
   });
 });

@@ -25,14 +25,14 @@ test.describe('/api/promo/check', () => {
     // Иначе по этому роуту можно перебирать чужие коды с любого домена.
     const res = await request.post(CHECK, {
       headers: { origin: THEIRS },
-      data: { scope: 'market', package: 'market', promo: 'PODRUGA20' },
+      data: { scope: 'market', package: 'market', promo: 'EXAMPLE10' },
     });
     expect(res.status()).toBe(403);
   });
 
   test('без Origin — тоже отказ', async ({ request }) => {
     const res = await request.post(CHECK, {
-      data: { scope: 'market', package: 'market', promo: 'PODRUGA20' },
+      data: { scope: 'market', package: 'market', promo: 'EXAMPLE10' },
     });
     expect(res.status()).toBe(403);
   });
@@ -40,7 +40,7 @@ test.describe('/api/promo/check', () => {
   test('неизвестная покупка отсекается до похода в базу', async ({ request }) => {
     const res = await request.post(CHECK, {
       headers: { origin: OURS },
-      data: { scope: 'нечто', promo: 'PODRUGA20' },
+      data: { scope: 'нечто', promo: 'EXAMPLE10' },
     });
     expect(res.status()).toBe(400);
   });
@@ -48,7 +48,7 @@ test.describe('/api/promo/check', () => {
   test('несуществующий пакет не считаем', async ({ request }) => {
     const res = await request.post(CHECK, {
       headers: { origin: OURS },
-      data: { scope: 'market', package: 'platinum', promo: 'PODRUGA20' },
+      data: { scope: 'market', package: 'platinum', promo: 'EXAMPLE10' },
     });
     expect(res.status()).toBe(400);
     expect(await res.json()).toMatchObject({ ok: false });
@@ -59,7 +59,7 @@ test.describe('/api/promo/check', () => {
     // видит «не получилось проверить код», а не ошибку доступа от браузера.
     const res = await request.post(CHECK, {
       headers: { origin: OURS },
-      data: { scope: 'market', package: 'market', promo: 'PODRUGA20' },
+      data: { scope: 'market', package: 'market', promo: 'EXAMPLE10' },
     });
     expect([200, 500, 503]).toContain(res.status());
     expect(res.headers()['access-control-allow-origin']).toBe(OURS);

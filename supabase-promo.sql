@@ -71,14 +71,27 @@ create index if not exists tickets_amount_mismatch_idx
   on public.tickets (amount_mismatch) where amount_mismatch;
 
 -- ------------------------------------------------------------
--- Как завести код (примеры, выполнять по необходимости):
+-- Как завести код
+--
+-- Настоящих кодов здесь нет и быть не должно: репозиторий публичный, а рабочий
+-- код живого магазина, лежащий в git, — это раздача скидок всем, кто умеет
+-- читать. Заводить через SQL Editor в дашборде базы. Форма запроса:
 --
 -- insert into public.promo_codes (code, scope, kind, value, max_uses, expires_at, note)
--- values ('PODRUGA20', 'market', 'percent', 20, 50, '2026-09-27 00:00+02', 'подругам продавцов');
+-- values ('EXAMPLE-CODE', 'market', 'percent', 10, 50, '2026-12-31 00:00+01', 'кому и зачем выдан');
 --
--- insert into public.promo_codes (code, scope, kind, value, max_uses, note)
--- values ('PRESSE', 'forum', 'amount', 5000, 10, 'пресса, −50 CHF');
+--   code        ВЕРХНИЙ регистр, [A-Z0-9-], до 32 знаков — ровно то, что понимает
+--               normalizeCode в lib/promo.js. Код в нижнем регистре не найдётся никогда.
+--   scope       'forum' — билеты, 'market' — пакеты продавцов, 'all' — и то и другое
+--   kind+value  'percent' и 1..100, либо 'amount' и скидка в рапенах (5000 = 50 CHF)
+--   max_uses    сколько раз им можно ОПЛАТИТЬ; null — без ограничения
+--   expires_at  срок; null — бессрочно
+--   note        через месяц это единственное, что объяснит, кому код выдавали
 --
 -- Выключить код, не удаляя (история заказов на него ссылается):
--- update public.promo_codes set active = false where code = 'PODRUGA20';
+-- update public.promo_codes set active = false where code = 'EXAMPLE-CODE';
+--
+-- Посмотреть, сколько раз кодами оплатили:
+-- select code, note, max_uses, public.count_promo_uses(code) as used
+--   from public.promo_codes order by created_at desc;
 -- ------------------------------------------------------------

@@ -105,9 +105,17 @@ test.describe('каталог билетов форума — метаданны
 
   test('категории и продукты на месте', () => {
     expect(Object.keys(CATEGORIES)).toEqual(['vip', 'premium', 'standard']);
-    expect(CATEGORIES.vip.limit).toBe(30);
-    expect(CATEGORIES.premium.limit).toBe(45);
-    expect(CATEGORIES.standard.limit).toBe(225);
+    // Схема зала: те же цифры, что в карточках на frankenplatz.ch/tickets и на
+    // странице оплаты. Расхождение здесь покупатель увидит при рассадке.
+    expect(CATEGORIES.vip.limit).toBe(45);
+    expect(CATEGORIES.premium.limit).toBe(75);
+    expect(CATEGORIES.standard.limit).toBe(180);
+    expect(CATEGORIES.vip.rows).toBe('1–3');
+    expect(CATEGORIES.premium.rows).toBe('4–8');
+    expect(CATEGORIES.standard.rows).toBe('9–20');
+    // Зал на 300 мест — сумма категорий должна сходиться с ним.
+    const seats = Object.values(CATEGORIES).reduce((n, c) => n + c.limit, 0);
+    expect(seats).toBe(300);
     expect(PRODUCT_KEYS).toEqual(['day1', 'day2', 'both']);
     expect(FORUM_EVENT_SLUG).toBe('frankenplatz-2026-10');
   });

@@ -21,6 +21,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # нужна история, чтобы сравнить правку с базой (шаг ниже)
+          fetch-depth: 0
+
+      # Правка одних только .md не может сломать сборку и тесты, но гоняет их
+      # пять минут — а STATE.md обновляется каждый день. Пропускаем тяжёлые шаги,
+      # НО сам job запускаем всегда: он обязателен для мержа, а пропущенный по
+      # paths-ignore прогон никогда не отчитывается и вешает PR в «Expected»
+      # навсегда (наступали 02.09).
+      - name: Только документация?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+          fi
+          # первый push ветки и force-push: базы в истории нет — проверяем всё
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed=$(git diff --name-only "$base" "$head")
+          echo "Изменено:"; echo "$changed"
+          if [ -z "$changed" ] || echo "$changed" | grep -qv "[.]md$"; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+            echo "Только .md — сборку и тесты пропускаем."
+          fi
 
       - uses: actions/setup-node@v7
         with:
@@ -28,9 +59,11 @@ jobs:
           cache: npm
 
       - name: Install dependencies (строго по package-lock.json)
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm ci
 
       - name: Build (ловит синтакс-ошибки всех роутов без env)
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm run build
 
       # Браузер кладём в кэш: скачивание — единственный шаг здесь, который
@@ -38,6 +71,7 @@ jobs:
       # (осиротевшим процессом в логе остался playwright install). Кэш
       # убирает причину на всех последующих прогонах.
       - name: Кэш браузера Playwright
+        if: steps.scope.outputs.docs_only != 'true'
         id: pw-cache
         uses: actions/cache@v6
         with:
@@ -50,16 +84,17 @@ jobs:
       # всего джоба: тогда это выглядит как «зависли тесты», хотя тесты
       # даже не начинались.
       - name: Системные библиотеки для браузера
-        if: steps.pw-cache.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 6
         run: npx playwright install-deps chromium
 
       - name: Установка браузера
-        if: steps.pw-cache.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.docs_only != 'true' && steps.pw-cache.outputs.cache-hit != 'true'
         timeout-minutes: 6
         run: npx playwright install chromium
 
       - name: Run tests (unit + e2e)
+        if: steps.scope.outputs.docs_only != 'true'
         timeout-minutes: 12
         run: npx playwright test
 
